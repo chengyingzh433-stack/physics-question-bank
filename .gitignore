@@ -3,3 +3,5 @@ dist
 out
 *.log
 .DS_Store
+_bat.log
+_bat.err
