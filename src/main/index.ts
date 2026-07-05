@@ -1,6 +1,7 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { initDatabase } from './storage/StorageService'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -10,7 +11,7 @@ function createWindow(): void {
     autoHideMenuBar: true,
     title: '物理教师题库管理系统',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: join(__dirname, '../preload/index.cjs'),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false
@@ -34,6 +35,11 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  initDatabase()
+  console.log('schema v1 ready')
+
+  ipcMain.handle('app:ping', () => 'pong')
+
   electronApp.setAppUserModelId('com.cyz.physics-question-bank')
 
   app.on('browser-window-created', (_, window) => {

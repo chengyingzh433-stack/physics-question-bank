@@ -1,7 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { Api } from '../shared/types'
 
-// M0-5 会在此暴露类型化 api；M0-1 先留空桥，确保 contextIsolation 链路通。
-const api = {}
+const api: Api = {
+  ping: (): Promise<string> => ipcRenderer.invoke('app:ping')
+}
 
 if (process.contextIsolated) {
   try {
@@ -10,6 +12,6 @@ if (process.contextIsolated) {
     console.error(error)
   }
 } else {
-  // @ts-ignore
+  // @ts-ignore (contextIsolation 关闭时的兜底，本项目不会走到这里)
   window.api = api
 }
