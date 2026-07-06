@@ -4,6 +4,7 @@ import { getDb } from '../storage/StorageService'
 import * as paperRepo from '../storage/repositories/paperRepo'
 import * as pageRepo from '../storage/repositories/pageRepo'
 import * as segmentRepo from '../storage/repositories/segmentRepo'
+import * as questionRepo from '../storage/repositories/questionRepo'
 import * as fileService from '../files/FileService'
 import type { NewPageDTO, SegmentDTO } from '../../shared/types'
 
@@ -123,4 +124,36 @@ export function registerIpc(): void {
       segmentRepo.replaceSegmentsForPage(getDb(), pageId, paperId, segments)
     }
   )
+
+  ipcMain.handle('segments:setDeleted', (_e, segmentId: number, isDeleted: boolean) => {
+    segmentRepo.setSegmentDeleted(getDb(), segmentId, isDeleted)
+  })
+
+  // ---- questions ----
+  ipcMain.handle('questions:listByPaper', (_e, paperId: number) => {
+    return questionRepo.listQuestionsByPaper(getDb(), paperId)
+  })
+
+  ipcMain.handle('questions:getSegments', (_e, questionId: number) => {
+    return questionRepo.getQuestionSegments(getDb(), questionId)
+  })
+
+  ipcMain.handle('questions:getSegmentMap', (_e, questionId: number) => {
+    return questionRepo.getQuestionSegmentMap(getDb(), questionId)
+  })
+
+  ipcMain.handle(
+    'questions:createWithSegments',
+    (_e, paperId: number, segmentIds: number[], orderInPaper: number | null) => {
+      return questionRepo.createQuestionWithSegments(getDb(), paperId, segmentIds, orderInPaper)
+    }
+  )
+
+  ipcMain.handle('questions:delete', (_e, questionId: number) => {
+    questionRepo.deleteQuestion(getDb(), questionId)
+  })
+
+  ipcMain.handle('questions:renumber', (_e, paperId: number) => {
+    questionRepo.renumberQuestions(getDb(), paperId)
+  })
 }

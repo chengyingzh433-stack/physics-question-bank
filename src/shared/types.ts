@@ -60,6 +60,18 @@ export interface Api {
     paperId: number,
     segments: Omit<SegmentDTO, 'id' | 'page_id' | 'paper_id'>[]
   ): Promise<void>
+  setSegmentDeleted(segmentId: number, isDeleted: boolean): Promise<void>
+  // questions
+  listQuestionsByPaper(paperId: number): Promise<QuestionDTO[]>
+  getQuestionSegments(questionId: number): Promise<SegmentDTO[]>
+  getQuestionSegmentMap(questionId: number): Promise<QuestionSegmentMap[]>
+  createQuestionWithSegments(
+    paperId: number,
+    segmentIds: number[],
+    orderInPaper: number | null
+  ): Promise<number>
+  deleteQuestion(questionId: number): Promise<void>
+  renumberQuestions(paperId: number): Promise<void>
 }
 
 // ---- 裁切相关 DTO ----
@@ -89,4 +101,24 @@ export interface SegmentDTO {
   y_end_ratio: number
   order_index?: number
   is_deleted?: number
+}
+
+export interface QuestionDTO {
+  id: number
+  paper_id: number
+  order_in_paper: number | null
+  type_id: number | null
+  chapter_id: number | null
+  difficulty_id: number | null
+  is_merged: number
+  image_path: string | null
+  width_px: number | null
+  height_px: number | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface QuestionSegmentMap {
+  segment_id: number
+  merge_order: number
 }

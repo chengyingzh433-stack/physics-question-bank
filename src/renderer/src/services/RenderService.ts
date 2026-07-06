@@ -96,4 +96,64 @@ export async function renderPage(
 
 export { pdfjsLib }
 
+// ---- 渲染页面某个比例区域到缩略图（低 DPI，后期处理用）----
+
+export interface RenderRegionResult {
+  canvas: HTMLCanvasElement
+  widthPx: number
+  heightPx: number
+}
+
+/**
+ * 渲染某页的某个比例区域 [x0,x1]×[y0,y1] 到 canvas（低 DPI，仅用于缩略图预览）。
+ * 用 pdfjs 的 viewport 整页渲染后 drawImage 裁剪区域。
+ * A6: rotation。返回的 canvas 即裁剪后的小图。
+ *
+ * 注意：缩略图清晰度不是关键（入库会重新 300DPI 渲染），这里用 ~96-150 DPI 即可（A11）。
+ */
+export async function renderPageRegion(
+  doc: PdfDocument,
+  pageIndex: number,
+  region: { x0: number; x1: number; y0: number; y1: number },
+  opts: { rotation: number; widthPt: number; heightPt: number; maxPx?: number }
+): Promise<{ result: RenderRegionResult; cancel: () => void; done: Promise<void> }> {
+  const page = await doc.getPage(pageIndex + 1)
+  // 整页渲染到离屏 canvas（低 DPI）
+  const maxPx = opts.maxPx ?? 1000
+  const fullScale = Math.min(1, maxPx / opts.widthPt, maxPx / opts.heightPt)
+  const viewport = page.getViewport({ scale: fullScale, rotation: opts.rotation })
+
+  const fullCanvas = document.createElement('canvas')
+  fullCanvas.width = Math.floor(viewport.width)
+  fullCanvas.height = Math.floor(viewport.height)
+  const ctx = fullCanvas.getContext('2d')!
+
+  const renderTask = page.render({ canvas: fullCanvas, canvasContext: ctx, viewport })
+  const done = renderTask.promise.then(() => {
+    page.cleanup()
+  })
+
+  const cancel = () => renderTask.cancel()
+
+  // 裁剪区域（比例 → 整页 canvas 像素）
+  const fw = fullCanvas.width
+  const fh = fullCanvas.height
+  const sx = Math.floor(region.x0 * fw)
+  const sy = Math.floor(region.y0 * fh)
+  const sw = Math.max(1, Math.floor(region.x1 * fw) - sx)
+  const sh = Math.max(1, Math.floor(region.y1 * fh) - sy)
+
+  const out = document.createElement('canvas')
+  out.width = sw
+  out.height = sh
+  const octx = out.getContext('2d')!
+  octx.drawImage(fullCanvas, sx, sy, sw, sh, 0, 0, sw, sh)
+
+  return {
+    result: { canvas: out, widthPx: sw, heightPx: sh },
+    cancel,
+    done
+  }
+}
+
 

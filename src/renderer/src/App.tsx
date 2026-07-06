@@ -1,6 +1,7 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import HomeView from './views/HomeView'
 import CropView from './views/CropView'
+import PostProcessView from './views/PostProcessView'
 
 function App(): React.JSX.Element {
   return (
@@ -8,6 +9,7 @@ function App(): React.JSX.Element {
       <Routes>
         <Route path="/" element={<HomeView />} />
         <Route path="/crop/:paperId" element={<CropView />} />
+        <Route path="/post/:paperId" element={<PostProcessView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </HashRouter>

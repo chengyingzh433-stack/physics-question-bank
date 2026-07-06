@@ -80,6 +80,9 @@ function CropView(): React.JSX.Element | null {
         <a href="#/" style={{ textDecoration: 'none', color: '#333' }}>
           ← 返回
         </a>
+        <a href={`#/post/${pid}`} style={{ textDecoration: 'none', color: '#333', marginLeft: 8 }}>
+          后期处理 →
+        </a>
         <strong style={{ marginLeft: 8 }}>{crop.paper.name}</strong>
         <span style={{ color: '#999' }}>{crop.pages.length} 页</span>
         <div style={{ flex: 1 }} />

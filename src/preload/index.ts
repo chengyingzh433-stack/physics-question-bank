@@ -27,7 +27,17 @@ const api: Api = {
   getSegmentsByPage: (pageId) => ipcRenderer.invoke('segments:byPage', pageId),
   getSegmentsByPaper: (paperId) => ipcRenderer.invoke('segments:byPaper', paperId),
   replaceSegmentsForPage: (pageId, paperId, segments) =>
-    ipcRenderer.invoke('segments:replaceForPage', pageId, paperId, segments)
+    ipcRenderer.invoke('segments:replaceForPage', pageId, paperId, segments),
+  setSegmentDeleted: (segmentId, isDeleted) =>
+    ipcRenderer.invoke('segments:setDeleted', segmentId, isDeleted),
+  // questions
+  listQuestionsByPaper: (paperId) => ipcRenderer.invoke('questions:listByPaper', paperId),
+  getQuestionSegments: (questionId) => ipcRenderer.invoke('questions:getSegments', questionId),
+  getQuestionSegmentMap: (questionId) => ipcRenderer.invoke('questions:getSegmentMap', questionId),
+  createQuestionWithSegments: (paperId, segmentIds, orderInPaper) =>
+    ipcRenderer.invoke('questions:createWithSegments', paperId, segmentIds, orderInPaper),
+  deleteQuestion: (questionId) => ipcRenderer.invoke('questions:delete', questionId),
+  renumberQuestions: (paperId) => ipcRenderer.invoke('questions:renumber', paperId)
 }
 
 if (process.contextIsolated) {
