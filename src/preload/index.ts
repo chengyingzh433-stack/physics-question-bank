@@ -59,7 +59,23 @@ const api: Api = {
   deleteTemplate: (id) => ipcRenderer.invoke('templates:delete', id),
   listRules: (templateId) => ipcRenderer.invoke('templates:listRules', templateId),
   addRule: (templateId, rule) => ipcRenderer.invoke('templates:addRule', templateId, rule),
-  deleteRule: (ruleId) => ipcRenderer.invoke('templates:deleteRule', ruleId)
+  deleteRule: (ruleId) => ipcRenderer.invoke('templates:deleteRule', ruleId),
+  // tags
+  listChapters: () => ipcRenderer.invoke('chapters:list'),
+  createChapter: (name) => ipcRenderer.invoke('chapters:create', name),
+  deleteChapter: (id) => ipcRenderer.invoke('chapters:delete', id),
+  listKnowledgePoints: () => ipcRenderer.invoke('kps:list'),
+  createKnowledgePoint: (name, chapterId) =>
+    ipcRenderer.invoke('kps:create', name, chapterId),
+  deleteKnowledgePoint: (id) => ipcRenderer.invoke('kps:delete', id),
+  listDifficulties: () => ipcRenderer.invoke('diffs:list'),
+  createDifficulty: (name, sortOrder) =>
+    ipcRenderer.invoke('diffs:create', name, sortOrder),
+  deleteDifficulty: (id) => ipcRenderer.invoke('diffs:delete', id),
+  setQuestionChapter: (qid, cid) => ipcRenderer.invoke('questions:setChapter', qid, cid),
+  setQuestionDifficulty: (qid, did) => ipcRenderer.invoke('questions:setDifficulty', qid, did),
+  setQuestionKnowledgePoints: (qid, kpIds) => ipcRenderer.invoke('questions:setKps', qid, kpIds),
+  getQuestionKnowledgePoints: (qid) => ipcRenderer.invoke('questions:getKps', qid)
 }
 
 if (process.contextIsolated) {

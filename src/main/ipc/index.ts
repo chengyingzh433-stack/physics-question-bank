@@ -7,6 +7,7 @@ import * as segmentRepo from '../storage/repositories/segmentRepo'
 import * as questionRepo from '../storage/repositories/questionRepo'
 import * as questionTypeRepo from '../storage/repositories/questionTypeRepo'
 import * as templateRepo from '../storage/repositories/templateRepo'
+import * as tagRepo from '../storage/repositories/tagRepo'
 import * as fileService from '../files/FileService'
 import type { NewPageDTO, SegmentDTO } from '../../shared/types'
 
@@ -223,4 +224,31 @@ export function registerIpc(): void {
   ipcMain.handle('templates:deleteRule', (_e, ruleId: number) => {
     templateRepo.deleteRule(getDb(), ruleId)
   })
+
+  // ---- tags ----
+  ipcMain.handle('chapters:list', () => tagRepo.listChapters(getDb()))
+  ipcMain.handle('chapters:create', (_e, name: string) => tagRepo.createChapter(getDb(), name))
+  ipcMain.handle('chapters:delete', (_e, id: number) => tagRepo.deleteChapter(getDb(), id))
+  ipcMain.handle('kps:list', () => tagRepo.listKnowledgePoints(getDb()))
+  ipcMain.handle('kps:create', (_e, name: string, chapterId: number | null) =>
+    tagRepo.createKnowledgePoint(getDb(), name, chapterId)
+  )
+  ipcMain.handle('kps:delete', (_e, id: number) => tagRepo.deleteKnowledgePoint(getDb(), id))
+  ipcMain.handle('diffs:list', () => tagRepo.listDifficulties(getDb()))
+  ipcMain.handle('diffs:create', (_e, name: string, sortOrder: number) =>
+    tagRepo.createDifficulty(getDb(), name, sortOrder)
+  )
+  ipcMain.handle('diffs:delete', (_e, id: number) => tagRepo.deleteDifficulty(getDb(), id))
+  ipcMain.handle('questions:setChapter', (_e, qid: number, cid: number | null) =>
+    tagRepo.setQuestionChapter(getDb(), qid, cid)
+  )
+  ipcMain.handle('questions:setDifficulty', (_e, qid: number, did: number | null) =>
+    tagRepo.setQuestionDifficulty(getDb(), qid, did)
+  )
+  ipcMain.handle('questions:setKps', (_e, qid: number, kpIds: number[]) =>
+    tagRepo.setQuestionKnowledgePoints(getDb(), qid, kpIds)
+  )
+  ipcMain.handle('questions:getKps', (_e, qid: number) =>
+    tagRepo.getQuestionKnowledgePoints(getDb(), qid)
+  )
 }

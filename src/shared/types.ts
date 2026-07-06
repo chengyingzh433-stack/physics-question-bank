@@ -104,6 +104,20 @@ export interface Api {
     rule: { from_no: number; to_no: number; type_id: number; rule_order?: number }
   ): Promise<number>
   deleteRule(ruleId: number): Promise<void>
+  // tags
+  listChapters(): Promise<{ id: number; name: string }[]>
+  createChapter(name: string): Promise<number>
+  deleteChapter(id: number): Promise<void>
+  listKnowledgePoints(): Promise<{ id: number; name: string; chapter_id: number | null }[]>
+  createKnowledgePoint(name: string, chapterId: number | null): Promise<number>
+  deleteKnowledgePoint(id: number): Promise<void>
+  listDifficulties(): Promise<{ id: number; name: string; sort_order: number }[]>
+  createDifficulty(name: string, sortOrder: number): Promise<number>
+  deleteDifficulty(id: number): Promise<void>
+  setQuestionChapter(questionId: number, chapterId: number | null): Promise<void>
+  setQuestionDifficulty(questionId: number, difficultyId: number | null): Promise<void>
+  setQuestionKnowledgePoints(questionId: number, kpIds: number[]): Promise<void>
+  getQuestionKnowledgePoints(questionId: number): Promise<number[]>
 }
 
 export interface TemplateRuleDTO {
