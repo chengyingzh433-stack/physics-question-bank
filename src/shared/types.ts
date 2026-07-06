@@ -118,6 +118,68 @@ export interface Api {
   setQuestionDifficulty(questionId: number, difficultyId: number | null): Promise<void>
   setQuestionKnowledgePoints(questionId: number, kpIds: number[]): Promise<void>
   getQuestionKnowledgePoints(questionId: number): Promise<number[]>
+  // bank
+  listBankQuestions(criteria: QuestionFilterCriteria): Promise<BankQuestionDTO[]>
+  // basket (paper_set draft)
+  getOrCreateDraftSet(): Promise<number>
+  listSetItems(setId: number): Promise<PaperSetItemDTO[]>
+  listSetQuestionIds(setId: number): Promise<number[]>
+  addToSet(setId: number, questionId: number): Promise<number>
+  removeFromSet(itemId: number): Promise<void>
+  updateSetItem(
+    itemId: number,
+    fields: {
+      order_index?: number
+      group_header?: string | null
+      display_number?: string | null
+    }
+  ): Promise<void>
+}
+
+export interface PaperSetItemDTO {
+  id: number
+  set_id: number
+  question_id: number
+  order_index: number | null
+  group_header: string | null
+  display_number: string | null
+}
+
+export interface QuestionFilterCriteria {
+  type_id?: number | null
+  paper_id?: number | null
+  chapter_id?: number | null
+  difficulty_id?: number | null
+  kp_ids?: number[]
+}
+
+export interface BankQuestionDTO {
+  id: number
+  paper_id: number
+  order_in_paper: number | null
+  type_id: number | null
+  chapter_id: number | null
+  difficulty_id: number | null
+  is_merged: number
+  image_path: string | null
+  width_px: number | null
+  height_px: number | null
+  paper_name: string
+}
+
+export interface ChapterDTO {
+  id: number
+  name: string
+}
+export interface KnowledgePointDTO {
+  id: number
+  name: string
+  chapter_id: number | null
+}
+export interface DifficultyDTO {
+  id: number
+  name: string
+  sort_order: number
 }
 
 export interface TemplateRuleDTO {

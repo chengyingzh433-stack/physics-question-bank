@@ -8,8 +8,9 @@ import * as questionRepo from '../storage/repositories/questionRepo'
 import * as questionTypeRepo from '../storage/repositories/questionTypeRepo'
 import * as templateRepo from '../storage/repositories/templateRepo'
 import * as tagRepo from '../storage/repositories/tagRepo'
+import * as setRepo from '../storage/repositories/setRepo'
 import * as fileService from '../files/FileService'
-import type { NewPageDTO, SegmentDTO } from '../../shared/types'
+import type { NewPageDTO, SegmentDTO, QuestionFilterCriteria } from '../../shared/types'
 
 /** 注册所有 IPC handler。在 app.whenReady 后调用一次。 */
 export function registerIpc(): void {
@@ -250,5 +251,41 @@ export function registerIpc(): void {
   )
   ipcMain.handle('questions:getKps', (_e, qid: number) =>
     tagRepo.getQuestionKnowledgePoints(getDb(), qid)
+  )
+
+  // ---- bank ----
+  ipcMain.handle('bank:list', (_e, criteria: QuestionFilterCriteria) => {
+    return questionRepo.listBankQuestions(getDb(), criteria)
+  })
+
+  // ---- basket (paper_set draft) ----
+  ipcMain.handle('sets:getDraft', () => {
+    return setRepo.getOrCreateDraftSet(getDb())
+  })
+  ipcMain.handle('sets:listItems', (_e, setId: number) => {
+    return setRepo.listSetItems(getDb(), setId)
+  })
+  ipcMain.handle('sets:listQuestionIds', (_e, setId: number) => {
+    return setRepo.listSetQuestionIds(getDb(), setId)
+  })
+  ipcMain.handle('sets:add', (_e, setId: number, questionId: number) => {
+    return setRepo.addToSet(getDb(), setId, questionId)
+  })
+  ipcMain.handle('sets:remove', (_e, itemId: number) => {
+    setRepo.removeFromSet(getDb(), itemId)
+  })
+  ipcMain.handle(
+    'sets:updateItem',
+    (
+      _e,
+      itemId: number,
+      fields: {
+        order_index?: number
+        group_header?: string | null
+        display_number?: string | null
+      }
+    ) => {
+      setRepo.updateSetItem(getDb(), itemId, fields)
+    }
   )
 }

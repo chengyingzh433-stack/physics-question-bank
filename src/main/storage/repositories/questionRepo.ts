@@ -1,5 +1,6 @@
 import type { DB } from '../StorageService'
 import type { SegmentDTO } from '../../../shared/types'
+import type { QuestionFilterCriteria } from '../questionFilter'
 
 /** 题目（含合并信息）的查询结果。 */
 export interface QuestionRow {
@@ -22,6 +23,49 @@ export function listQuestionsByPaper(db: DB, paperId: number): QuestionRow[] {
   return db
     .prepare(`SELECT * FROM questions WHERE paper_id = ? ORDER BY order_in_paper ASC`)
     .all(paperId) as QuestionRow[]
+}
+
+/** 题库浏览：按筛选条件查所有已入库题（image_path 非空），带来源试卷名。 */
+export function listBankQuestions(
+  db: DB,
+  criteria: QuestionFilterCriteria
+): (QuestionRow & { paper_name: string })[] {
+  const { where, params } = buildQuestionFilterWithJoin(criteria)
+  const sql = `SELECT DISTINCT q.*, p.name AS paper_name FROM questions q JOIN papers p ON p.id = q.paper_id ${where} ORDER BY q.paper_id ASC, q.order_in_paper ASC`
+  return db.prepare(sql).all(...params) as (QuestionRow & { paper_name: string })[]
+}
+
+// buildQuestionFilterWithJoin 把 kp 命中放进 EXISTS 子查询，避免 JOIN 放大行数。
+function buildQuestionFilterWithJoin(c: QuestionFilterCriteria): {
+  where: string
+  params: (string | number)[]
+} {
+  const conditions: string[] = ['q.image_path IS NOT NULL']
+  const params: (string | number)[] = []
+  if (c.type_id != null) {
+    conditions.push('q.type_id = ?')
+    params.push(c.type_id)
+  }
+  if (c.paper_id != null) {
+    conditions.push('q.paper_id = ?')
+    params.push(c.paper_id)
+  }
+  if (c.chapter_id != null) {
+    conditions.push('q.chapter_id = ?')
+    params.push(c.chapter_id)
+  }
+  if (c.difficulty_id != null) {
+    conditions.push('q.difficulty_id = ?')
+    params.push(c.difficulty_id)
+  }
+  if (c.kp_ids && c.kp_ids.length > 0) {
+    const placeholders = c.kp_ids.map(() => '?').join(',')
+    conditions.push(
+      `EXISTS (SELECT 1 FROM question_knowledge_points qkp WHERE qkp.question_id = q.id AND qkp.kp_id IN (${placeholders}))`
+    )
+    c.kp_ids.forEach((k) => params.push(k))
+  }
+  return { where: 'WHERE ' + conditions.join(' AND '), params }
 }
 
 /** 取某题的所有 segment（按 merge_order）。 */

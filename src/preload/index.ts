@@ -75,7 +75,16 @@ const api: Api = {
   setQuestionChapter: (qid, cid) => ipcRenderer.invoke('questions:setChapter', qid, cid),
   setQuestionDifficulty: (qid, did) => ipcRenderer.invoke('questions:setDifficulty', qid, did),
   setQuestionKnowledgePoints: (qid, kpIds) => ipcRenderer.invoke('questions:setKps', qid, kpIds),
-  getQuestionKnowledgePoints: (qid) => ipcRenderer.invoke('questions:getKps', qid)
+  getQuestionKnowledgePoints: (qid) => ipcRenderer.invoke('questions:getKps', qid),
+  // bank
+  listBankQuestions: (criteria) => ipcRenderer.invoke('bank:list', criteria),
+  // basket
+  getOrCreateDraftSet: () => ipcRenderer.invoke('sets:getDraft'),
+  listSetItems: (setId) => ipcRenderer.invoke('sets:listItems', setId),
+  listSetQuestionIds: (setId) => ipcRenderer.invoke('sets:listQuestionIds', setId),
+  addToSet: (setId, questionId) => ipcRenderer.invoke('sets:add', setId, questionId),
+  removeFromSet: (itemId) => ipcRenderer.invoke('sets:remove', itemId),
+  updateSetItem: (itemId, fields) => ipcRenderer.invoke('sets:updateItem', itemId, fields)
 }
 
 if (process.contextIsolated) {

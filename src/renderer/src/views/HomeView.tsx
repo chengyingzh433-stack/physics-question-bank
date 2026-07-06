@@ -64,6 +64,12 @@ function HomeView(): React.JSX.Element {
         >
           题型与模板管理
         </a>
+        <a
+          href="#/bank"
+          style={{ marginLeft: 12, textDecoration: 'none', color: '#0078d7' }}
+        >
+          题库浏览
+        </a>
       </div>
       {error && (
         <div style={{ color: 'crimson', marginBottom: 12 }}>{error}</div>
