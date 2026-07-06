@@ -9,6 +9,7 @@ import * as questionTypeRepo from '../storage/repositories/questionTypeRepo'
 import * as templateRepo from '../storage/repositories/templateRepo'
 import * as tagRepo from '../storage/repositories/tagRepo'
 import * as setRepo from '../storage/repositories/setRepo'
+import * as exportService from '../export/ExportService'
 import * as fileService from '../files/FileService'
 import type { NewPageDTO, SegmentDTO, QuestionFilterCriteria } from '../../shared/types'
 
@@ -288,4 +289,9 @@ export function registerIpc(): void {
       setRepo.updateSetItem(getDb(), itemId, fields)
     }
   )
+
+  // ---- export ----
+  ipcMain.handle('export:basket', async (_e, setId: number, title: string) => {
+    return exportService.exportBasketPdf(setId, title)
+  })
 }

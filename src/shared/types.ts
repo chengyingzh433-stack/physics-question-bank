@@ -134,6 +134,7 @@ export interface Api {
       display_number?: string | null
     }
   ): Promise<void>
+  exportBasketPdf(setId: number, title: string): Promise<string | null>
 }
 
 export interface PaperSetItemDTO {

@@ -7,6 +7,9 @@ function BasketView(): React.JSX.Element {
   const [items, setItems] = useState<PaperSetItemDTO[]>([])
   const [qMap, setQMap] = useState<Record<number, BankQuestionDTO>>({})
   const [groupHeaders, setGroupHeaders] = useState<Record<number, string>>({})
+  const [exportTitle, setExportTitle] = useState('物理试卷')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
     const sid = await window.api.getOrCreateDraftSet()
@@ -62,6 +65,21 @@ function BasketView(): React.JSX.Element {
     []
   )
 
+  const handleExport = useCallback(async () => {
+    setBusy(true)
+    setMsg(null)
+    try {
+      const sid = await window.api.getOrCreateDraftSet()
+      const path = await window.api.exportBasketPdf(sid, exportTitle)
+      if (path) setMsg('已导出：' + path)
+      else setMsg('已取消')
+    } catch (e) {
+      setMsg('导出失败：' + String(e))
+    } finally {
+      setBusy(false)
+    }
+  }, [exportTitle])
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <div
@@ -78,8 +96,19 @@ function BasketView(): React.JSX.Element {
         <strong style={{ marginLeft: 8 }}>组卷篮</strong>
         <span style={{ color: '#999' }}>{items.length} 题</span>
         <div style={{ flex: 1 }} />
-        <Link to="/" style={{ textDecoration: 'none', color: '#333' }}>主页</Link>
+        <input
+          value={exportTitle}
+          onChange={(e) => setExportTitle(e.target.value)}
+          placeholder="试卷标题"
+          style={{ width: 160 }}
+        />
+        <button onClick={handleExport} disabled={busy || items.length === 0}>
+          {busy ? '导出中…' : '导出 PDF'}
+        </button>
+        <Link to="/" style={{ textDecoration: 'none', color: '#333', marginLeft: 8 }}>主页</Link>
       </div>
+
+      {msg && <div style={{ padding: 8, background: '#fffde7' }}>{msg}</div>}
 
       <div style={{ flex: 1, overflow: 'auto', padding: 12, background: '#eee' }}>
         {items.length === 0 && <div>篮内为空，去题库勾选加入。</div>}

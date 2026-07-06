@@ -84,7 +84,8 @@ const api: Api = {
   listSetQuestionIds: (setId) => ipcRenderer.invoke('sets:listQuestionIds', setId),
   addToSet: (setId, questionId) => ipcRenderer.invoke('sets:add', setId, questionId),
   removeFromSet: (itemId) => ipcRenderer.invoke('sets:remove', itemId),
-  updateSetItem: (itemId, fields) => ipcRenderer.invoke('sets:updateItem', itemId, fields)
+  updateSetItem: (itemId, fields) => ipcRenderer.invoke('sets:updateItem', itemId, fields),
+  exportBasketPdf: (setId, title) => ipcRenderer.invoke('export:basket', setId, title)
 }
 
 if (process.contextIsolated) {
