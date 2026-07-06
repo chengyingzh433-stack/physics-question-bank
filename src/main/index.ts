@@ -1,7 +1,12 @@
-import { app, BrowserWindow, shell, ipcMain } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDatabase } from './storage/StorageService'
+import { registerIpc } from './ipc'
+import { registerAppProtocol, handleAppProtocol } from './files/FileService'
+
+// scheme 必须在 app ready 之前注册
+registerAppProtocol()
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -38,7 +43,8 @@ app.whenReady().then(() => {
   initDatabase()
   console.log('schema v1 ready')
 
-  ipcMain.handle('app:ping', () => 'pong')
+  handleAppProtocol()
+  registerIpc()
 
   electronApp.setAppUserModelId('com.cyz.physics-question-bank')
 

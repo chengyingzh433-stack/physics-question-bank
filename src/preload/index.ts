@@ -2,7 +2,18 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { Api } from '../shared/types'
 
 const api: Api = {
-  ping: (): Promise<string> => ipcRenderer.invoke('app:ping')
+  ping: () => ipcRenderer.invoke('app:ping'),
+  // papers
+  listPapers: () => ipcRenderer.invoke('papers:list'),
+  getPaper: (id) => ipcRenderer.invoke('papers:get', id),
+  importPaper: (name) => ipcRenderer.invoke('papers:import', name),
+  deletePaper: (id) => ipcRenderer.invoke('papers:delete', id),
+  // pages
+  bulkAddPages: (pages) => ipcRenderer.invoke('pages:bulkAdd', pages),
+  setPageCount: (paperId, n) => ipcRenderer.invoke('pages:setCount', paperId, n),
+  getPages: (paperId) => ipcRenderer.invoke('pages:list', paperId),
+  // files
+  getSourcePdfPath: (paperId) => ipcRenderer.invoke('files:sourcePdfPath', paperId)
 }
 
 if (process.contextIsolated) {
@@ -12,6 +23,6 @@ if (process.contextIsolated) {
     console.error(error)
   }
 } else {
-  // @ts-ignore (contextIsolation 关闭时的兜底，本项目不会走到这里)
+  // @ts-ignore
   window.api = api
 }
