@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "dist": "electron-vite build && electron-builder --config electron-builder.yml",
     "preview": "electron-vite preview",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
@@ -17,7 +18,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@fontsource/noto-sans-sc": "^5.2.9",
     "@pdf-lib/fontkit": "^1.1.1",
     "better-sqlite3": "^11.8.1",
     "pdf-lib": "^1.17.1",

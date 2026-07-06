@@ -51,6 +51,23 @@ function HomeView(): React.JSX.Element {
     [navigate]
   )
 
+  // R3: 删除试卷级联删 pages/cut_lines/segments/questions 及图片，需二次确认。
+  const handleDelete = useCallback(
+    async (id: number, name: string) => {
+      const ok = window.confirm(
+        `确定删除试卷「${name}」吗？\n将级联删除其所有页、裁切线、片段、入库题目及图片文件，且不可恢复。`
+      )
+      if (!ok) return
+      try {
+        await window.api.deletePaper(id)
+        await refresh()
+      } catch (e) {
+        setError('删除失败：' + String(e))
+      }
+    },
+    [refresh]
+  )
+
   return (
     <div style={{ padding: 24, fontFamily: 'system-ui, sans-serif' }}>
       <h1>物理教师题库管理系统</h1>
@@ -95,6 +112,15 @@ function HomeView(): React.JSX.Element {
             </div>
             <div style={{ fontSize: 12, color: '#999' }}>
               {p.created_at ? new Date(p.created_at).toLocaleString() : ''}
+            </div>
+            <div style={{ marginTop: 6, display: 'flex', gap: 6 }}>
+              <button onClick={(e) => { e.stopPropagation(); handleOpen(p.id) }}>打开</button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDelete(p.id, p.name) }}
+                style={{ color: 'crimson' }}
+              >
+                删除
+              </button>
             </div>
           </div>
         ))}

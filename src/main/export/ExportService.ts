@@ -9,10 +9,12 @@ import * as setRepo from '../storage/repositories/setRepo'
 import { imagesDir } from '../files/FileService'
 import { A4_WIDTH_PT, A4_HEIGHT_PT, EXPORT_MARGIN_PT, EXPORT_DPI } from '../../shared/constants'
 
-/** 找中文字体 TTF：优先项目 assets，其次 userData 下自定义字体。 */
+/** 找中文字体 TTF：dev 下 assets，打包后 extraResources，最后 userData 自定义。 */
 async function findCjkFont(): Promise<Buffer> {
   const candidates = [
     join(app.getAppPath(), 'src/renderer/src/assets/fonts/NotoSansSC-Regular.ttf'),
+    // 打包后 extraResources 把字体放到 resources/fonts/
+    join(process.resourcesPath ?? '', 'fonts/NotoSansSC-Regular.ttf'),
     join(app.getPath('userData'), 'fonts/NotoSansSC-Regular.ttf')
   ]
   for (const p of candidates) {

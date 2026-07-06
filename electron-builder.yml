@@ -1,0 +1,38 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.cyz.physics-question-bank",
+  "productName": "物理教师题库管理系统",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "out/**/*",
+    "node_modules/**/*",
+    "package.json"
+  ],
+  "asarUnpack": [
+    "node_modules/better-sqlite3/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "src/renderer/src/assets/fonts/NotoSansSC-Regular.ttf",
+      "to": "fonts/NotoSansSC-Regular.ttf"
+    }
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "物理题库系统"
+  }
+}
