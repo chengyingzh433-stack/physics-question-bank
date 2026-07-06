@@ -1,0 +1,133 @@
+import type {
+  ColumnDividerDTO,
+  CutLineDTO,
+  SegmentDTO
+} from '@shared/types'
+
+export interface PageCropInput {
+  page_id: number
+  paper_id: number
+  column_mode: number // 1/2/3
+}
+
+/**
+ * 由 分列(column_mode + dividers) 与 横切(cutLines) 派生片段。
+ *
+ * 规则：
+ * - n 列 = n-1 条分隔线，列 x 区间由分隔线切分：[0, d1, d2, ..., 1]。
+ * - 每列内 y 边界 = [0, ...该列 cutLines 的 y_ratio 升序, 1]，相邻两值成一段。
+ * - order_index 按 页→列(左→右)→y(上→下) 排序。
+ * - A13: 过滤零高/零宽退化段（y_start>=y_end 或 x_start>=x_end）。
+ *
+ * 输出比例坐标，渲染时再按 A5 共用边界像素换算。
+ */
+export function deriveSegments(
+  page: PageCropInput,
+  dividers: ColumnDividerDTO[],
+  cutLines: CutLineDTO[]
+): SegmentDTO[] {
+  const mode = Math.max(1, Math.min(3, Math.floor(page.column_mode)))
+
+  // 列 x 边界：n 列 = n+1 个边界点（含 0 与 1）
+  // 分隔线先夹到 (eps, 1-eps) 不碰端点，避免越界与端点去重导致列数变化（A13）
+  const eps = 1e-6
+  const sortedDivX = dividers
+    .map((d) => Math.max(eps, Math.min(1 - eps, d.x_ratio)))
+    .sort((a, b) => a - b)
+  // 仅取前 mode-1 条（多余的分隔线忽略，不足则补均分）
+  const xs: number[] = [0]
+  if (sortedDivX.length >= mode - 1) {
+    xs.push(...sortedDivX.slice(0, mode - 1))
+  } else {
+    // 不足：补均分点
+    for (let i = 1; i < mode; i++) {
+      if (i - 1 < sortedDivX.length) {
+        xs.push(sortedDivX[i - 1])
+      } else {
+        xs.push(i / mode)
+      }
+    }
+  }
+  xs.push(1)
+  // 边界点保证严格递增（分隔线已夹离端点，这里只防分隔线彼此过近）
+  const clampedXs = clampStrictlyIncreasing(xs, 0, 1)
+
+  const segments: SegmentDTO[] = []
+  let order = 0
+
+  for (let col = 0; col < mode; col++) {
+    const xStart = clampedXs[col]
+    const xEnd = clampedXs[col + 1]
+    if (xEnd - xStart <= 0) continue // 退化列跳过
+
+    // 该列的横切线，按 y 升序
+    const ys = cutLines
+      .filter((l) => l.col_index === col)
+      .map((l) => l.y_ratio)
+      .sort((a, b) => a - b)
+
+    // y 边界 = [0, ...ys, 1]，相邻成段
+    const yBounds = clampStrictlyIncreasing([0, ...ys, 1], 0, 1)
+    for (let i = 0; i < yBounds.length - 1; i++) {
+      const yStart = yBounds[i]
+      const yEnd = yBounds[i + 1]
+      if (yEnd - yStart <= 0) continue // A13 退化段跳过
+      segments.push({
+        paper_id: page.paper_id,
+        page_id: page.page_id,
+        col_index: col,
+        x_start_ratio: xStart,
+        x_end_ratio: xEnd,
+        y_start_ratio: yStart,
+        y_end_ratio: yEnd,
+        order_index: order++,
+        is_deleted: 0
+      })
+    }
+  }
+
+  return segments
+}
+
+/** 把一组边界点夹紧到 [min,max] 并保证严格递增（去重 + 微扰），用于消除浮点/越界。 */
+function clampStrictlyIncreasing(values: number[], min: number, max: number): number[] {
+  const eps = 1e-9
+  const out: number[] = []
+  for (let v of values) {
+    v = Math.max(min, Math.min(max, v))
+    if (out.length === 0) {
+      out.push(v)
+      continue
+    }
+    const prev = out[out.length - 1]
+    // 重复或极近的值：去重（合并为同一边界），不产生退化段
+    if (v - prev < eps) continue
+    out.push(v)
+  }
+  return out
+}
+
+// ---- 像素换算工具（A5: 相邻段共用边界像素，避免 1px 白缝/重叠）----
+
+/** px = ratio * size_pt * (dpi/72)（R8）。 */
+export function ratioToPx(ratio: number, sizePt: number, dpi: number): number {
+  return ratio * sizePt * (dpi / 72)
+}
+
+/**
+ * 把某段在高度方向上的像素区间换算为整数，使相邻段首尾相接（A5）。
+ * 上段区间 [floor(y0px), floor(y1px))，下段从 floor(y1px) 开始，共用 floor(y1px)。
+ */
+export function segmentPixelRows(
+  yStartRatio: number,
+  yEndRatio: number,
+  sizePt: number,
+  dpi: number,
+  y0Floor?: number
+): { startPx: number; endPx: number } {
+  const y0px = ratioToPx(yStartRatio, sizePt, dpi)
+  const y1px = ratioToPx(yEndRatio, sizePt, dpi)
+  const startPx = y0Floor ?? Math.floor(y0px)
+  const endPx = Math.floor(y1px)
+  return { startPx, endPx: Math.max(endPx, startPx + 1) }
+}

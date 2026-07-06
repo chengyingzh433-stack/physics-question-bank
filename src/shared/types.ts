@@ -43,4 +43,50 @@ export interface Api {
   getPages(paperId: number): Promise<PageDTO[]>
   // files
   getSourcePdfPath(paperId: number): Promise<string | null>
+  // pages crop
+  getPage(pageId: number): Promise<PageDTO | null>
+  setColumnMode(pageId: number, mode: number): Promise<void>
+  listDividers(pageId: number): Promise<ColumnDividerDTO[]>
+  replaceDividers(pageId: number, xRatios: number[]): Promise<void>
+  listCutLines(pageId: number): Promise<CutLineDTO[]>
+  addCutLine(pageId: number, colIndex: number, yRatio: number): Promise<number>
+  undoLastCutLine(pageId: number): Promise<number | null>
+  deleteCutLine(cutLineId: number): Promise<void>
+  // segments
+  getSegmentsByPage(pageId: number): Promise<SegmentDTO[]>
+  getSegmentsByPaper(paperId: number): Promise<SegmentDTO[]>
+  replaceSegmentsForPage(
+    pageId: number,
+    paperId: number,
+    segments: Omit<SegmentDTO, 'id' | 'page_id' | 'paper_id'>[]
+  ): Promise<void>
+}
+
+// ---- 裁切相关 DTO ----
+
+export interface ColumnDividerDTO {
+  id?: number
+  page_id?: number
+  x_ratio: number // 0..1，竖向分隔线位置
+}
+
+export interface CutLineDTO {
+  id?: number
+  page_id?: number
+  col_index: number // 归属哪一列
+  y_ratio: number // 0..1，横向切刀位置
+  created_seq?: number
+}
+
+export interface SegmentDTO {
+  id?: number
+  paper_id?: number
+  page_id?: number
+  col_index: number
+  x_start_ratio: number
+  x_end_ratio: number
+  y_start_ratio: number
+  y_end_ratio: number
+  order_index?: number
+  is_deleted?: number
 }

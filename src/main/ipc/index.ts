@@ -2,8 +2,10 @@ import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { basename } from 'path'
 import { getDb } from '../storage/StorageService'
 import * as paperRepo from '../storage/repositories/paperRepo'
+import * as pageRepo from '../storage/repositories/pageRepo'
+import * as segmentRepo from '../storage/repositories/segmentRepo'
 import * as fileService from '../files/FileService'
-import type { NewPageDTO } from '../../shared/types'
+import type { NewPageDTO, SegmentDTO } from '../../shared/types'
 
 /** 注册所有 IPC handler。在 app.whenReady 后调用一次。 */
 export function registerIpc(): void {
@@ -72,4 +74,53 @@ export function registerIpc(): void {
   ipcMain.handle('files:sourcePdfPath', async (_e, paperId: number) => {
     return fileService.getSourcePdfPath(paperId)
   })
+
+  // ---- pages crop ----
+  ipcMain.handle('pages:get', (_e, pageId: number) => {
+    return pageRepo.getPage(getDb(), pageId)
+  })
+
+  ipcMain.handle('pages:setColumnMode', (_e, pageId: number, mode: number) => {
+    pageRepo.setColumnMode(getDb(), pageId, mode)
+  })
+
+  ipcMain.handle('dividers:list', (_e, pageId: number) => {
+    return pageRepo.listDividers(getDb(), pageId)
+  })
+
+  ipcMain.handle('dividers:replace', (_e, pageId: number, xRatios: number[]) => {
+    pageRepo.replaceDividers(getDb(), pageId, xRatios)
+  })
+
+  ipcMain.handle('cutlines:list', (_e, pageId: number) => {
+    return pageRepo.listCutLines(getDb(), pageId)
+  })
+
+  ipcMain.handle('cutlines:add', (_e, pageId: number, colIndex: number, yRatio: number) => {
+    return pageRepo.addCutLine(getDb(), pageId, colIndex, yRatio)
+  })
+
+  ipcMain.handle('cutlines:undo', (_e, pageId: number) => {
+    return pageRepo.undoLastCutLine(getDb(), pageId)
+  })
+
+  ipcMain.handle('cutlines:delete', (_e, cutLineId: number) => {
+    pageRepo.deleteCutLine(getDb(), cutLineId)
+  })
+
+  // ---- segments ----
+  ipcMain.handle('segments:byPage', (_e, pageId: number) => {
+    return segmentRepo.getSegmentsByPage(getDb(), pageId)
+  })
+
+  ipcMain.handle('segments:byPaper', (_e, paperId: number) => {
+    return segmentRepo.getSegmentsByPaper(getDb(), paperId)
+  })
+
+  ipcMain.handle(
+    'segments:replaceForPage',
+    (_e, pageId: number, paperId: number, segments: Omit<SegmentDTO, 'id' | 'page_id' | 'paper_id'>[]) => {
+      segmentRepo.replaceSegmentsForPage(getDb(), pageId, paperId, segments)
+    }
+  )
 }

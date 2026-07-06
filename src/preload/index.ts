@@ -13,7 +13,21 @@ const api: Api = {
   setPageCount: (paperId, n) => ipcRenderer.invoke('pages:setCount', paperId, n),
   getPages: (paperId) => ipcRenderer.invoke('pages:list', paperId),
   // files
-  getSourcePdfPath: (paperId) => ipcRenderer.invoke('files:sourcePdfPath', paperId)
+  getSourcePdfPath: (paperId) => ipcRenderer.invoke('files:sourcePdfPath', paperId),
+  // pages crop
+  getPage: (pageId) => ipcRenderer.invoke('pages:get', pageId),
+  setColumnMode: (pageId, mode) => ipcRenderer.invoke('pages:setColumnMode', pageId, mode),
+  listDividers: (pageId) => ipcRenderer.invoke('dividers:list', pageId),
+  replaceDividers: (pageId, xRatios) => ipcRenderer.invoke('dividers:replace', pageId, xRatios),
+  listCutLines: (pageId) => ipcRenderer.invoke('cutlines:list', pageId),
+  addCutLine: (pageId, colIndex, yRatio) => ipcRenderer.invoke('cutlines:add', pageId, colIndex, yRatio),
+  undoLastCutLine: (pageId) => ipcRenderer.invoke('cutlines:undo', pageId),
+  deleteCutLine: (cutLineId) => ipcRenderer.invoke('cutlines:delete', cutLineId),
+  // segments
+  getSegmentsByPage: (pageId) => ipcRenderer.invoke('segments:byPage', pageId),
+  getSegmentsByPaper: (paperId) => ipcRenderer.invoke('segments:byPaper', paperId),
+  replaceSegmentsForPage: (pageId, paperId, segments) =>
+    ipcRenderer.invoke('segments:replaceForPage', pageId, paperId, segments)
 }
 
 if (process.contextIsolated) {
