@@ -1,6 +1,6 @@
 import * as pdfjsLib from 'pdfjs-dist'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
-// A1: 显式指定 worker，版本与主库一致（同一个包内）
+// A1: 显式指定 worker，版本与主库一致（同一个包内）。v4 兼容 Electron 31 的 Chromium。
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
@@ -18,7 +18,7 @@ export async function loadPdf(
 ): Promise<{ doc: PdfDocument; destroy: () => Promise<void> }> {
   const loadingTask = pdfjsLib.getDocument({ url })
   const doc = await loadingTask.promise
-  return { doc, destroy: () => loadingTask.destroy() }
+  return { doc, destroy: () => doc.destroy() }
 }
 
 /** 读取某页尺寸（pt，已含旋转）。A6: 用 getViewport({scale:1, rotation: page.rotate})。 */
@@ -53,8 +53,6 @@ export interface RenderResult {
 
 /**
  * 渲染某页到 canvas。
- * - renderScale: pdfjs 渲染缩放（含 dpr，用于清晰度）。
- * - displayWidth/Height: CSS 显示尺寸（px）。
  * A3: 返回 renderTask 与 cancel；A4: canvas 缓冲 = cssW*dpr × cssH*dpr。
  * A6: viewport 传 rotation。
  */
@@ -66,12 +64,10 @@ export async function renderPage(
     heightCss: number
     dpr: number
     rotation: number
-    /** 0..1 的页面比例宽高，渲染底层用 pdfjs viewport scale = widthCss*dpr / width_pt */
     widthPt: number
   }
 ): Promise<{ result: RenderResult; cancel: () => void; done: Promise<void> }> {
   const page = await doc.getPage(pageIndex + 1)
-  // pdfjs scale: 让缓冲宽度 = widthCss * dpr
   const scale = (opts.widthCss * opts.dpr) / opts.widthPt
   const viewport = page.getViewport({ scale, rotation: opts.rotation })
 
@@ -81,9 +77,9 @@ export async function renderPage(
   canvas.style.width = `${opts.widthCss}px`
   canvas.style.height = `${opts.heightCss}px`
   const ctx = canvas.getContext('2d')!
-  ctx.scale(opts.dpr, opts.dpr) // A4: 让绘图坐标用 CSS px
+  ctx.scale(opts.dpr, opts.dpr)
 
-  const renderTask = page.render({ canvas, canvasContext: ctx, viewport })
+  const renderTask = page.render({ canvasContext: ctx, viewport })
   const done = renderTask.promise.then(() => {
     page.cleanup()
   })
@@ -106,10 +102,7 @@ export interface RenderRegionResult {
 
 /**
  * 渲染某页的某个比例区域 [x0,x1]×[y0,y1] 到 canvas（低 DPI，仅用于缩略图预览）。
- * 用 pdfjs 的 viewport 整页渲染后 drawImage 裁剪区域。
- * A6: rotation。返回的 canvas 即裁剪后的小图。
- *
- * 注意：缩略图清晰度不是关键（入库会重新 300DPI 渲染），这里用 ~96-150 DPI 即可（A11）。
+ * A6: rotation。
  */
 export async function renderPageRegion(
   doc: PdfDocument,
@@ -118,7 +111,6 @@ export async function renderPageRegion(
   opts: { rotation: number; widthPt: number; heightPt: number; maxPx?: number }
 ): Promise<{ result: RenderRegionResult; cancel: () => void; done: Promise<void> }> {
   const page = await doc.getPage(pageIndex + 1)
-  // 整页渲染到离屏 canvas（低 DPI）
   const maxPx = opts.maxPx ?? 1000
   const fullScale = Math.min(1, maxPx / opts.widthPt, maxPx / opts.heightPt)
   const viewport = page.getViewport({ scale: fullScale, rotation: opts.rotation })
@@ -128,14 +120,13 @@ export async function renderPageRegion(
   fullCanvas.height = Math.floor(viewport.height)
   const ctx = fullCanvas.getContext('2d')!
 
-  const renderTask = page.render({ canvas: fullCanvas, canvasContext: ctx, viewport })
+  const renderTask = page.render({ canvasContext: ctx, viewport })
   const done = renderTask.promise.then(() => {
     page.cleanup()
   })
 
   const cancel = () => renderTask.cancel()
 
-  // 裁剪区域（比例 → 整页 canvas 像素）
   const fw = fullCanvas.width
   const fh = fullCanvas.height
   const sx = Math.floor(region.x0 * fw)
@@ -160,7 +151,7 @@ export async function renderPageRegion(
 
 /**
  * 按 dpi 渲染某页的某比例区域到离屏 canvas，返回裁剪后的小 canvas。
- * 用于入库标准图。A6 rotation。释放：调用方用完把 canvas 置空（A11）。
+ * A6 rotation。释放：调用方用完把 canvas 置空（A11）。
  */
 export async function renderPageRegionAtDpi(
   doc: PdfDocument,
@@ -176,7 +167,7 @@ export async function renderPageRegionAtDpi(
   fullCanvas.width = Math.floor(viewport.width)
   fullCanvas.height = Math.floor(viewport.height)
   const ctx = fullCanvas.getContext('2d')!
-  const renderTask = page.render({ canvas: fullCanvas, canvasContext: ctx, viewport })
+  const renderTask = page.render({ canvasContext: ctx, viewport })
   try {
     await renderTask.promise
   } finally {
@@ -185,7 +176,6 @@ export async function renderPageRegionAtDpi(
 
   const fw = fullCanvas.width
   const fh = fullCanvas.height
-  // A5: 区域边界用 floor，相邻段共用边界像素（这里单段独立裁剪，入库拼接由 ColumnCropService 处理）
   const sx = Math.floor(region.x0 * fw)
   const sy = Math.floor(region.y0 * fh)
   const sw = Math.max(1, Math.floor(region.x1 * fw) - sx)
@@ -196,10 +186,7 @@ export async function renderPageRegionAtDpi(
   out.height = sh
   const octx = out.getContext('2d')!
   octx.drawImage(fullCanvas, sx, sy, sw, sh, 0, 0, sw, sh)
-  // 释放整页 canvas（A11）
   fullCanvas.width = 0
   fullCanvas.height = 0
   return { canvas: out, widthPx: sw, heightPx: sh }
 }
-
-
