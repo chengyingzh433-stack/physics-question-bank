@@ -1,6 +1,6 @@
 import { app, protocol, net } from 'electron'
 import { join } from 'path'
-import { copyFile, mkdir, access } from 'fs/promises'
+import { copyFile, mkdir, access, writeFile } from 'fs/promises'
 import { pathToFileURL } from 'url'
 
 /** 试卷项目根目录：userData/projects/{paperId}/ */
@@ -87,4 +87,21 @@ export function handleAppProtocol(): void {
     }
     return net.fetch(pathToFileURL(fsPath).href)
   })
+}
+
+/**
+ * 把题图 PNG 字节写到 projects/{paperId}/images/q_{questionId}.png。
+ * 返回相对路径（存 questions.image_path）与 app:// URL（供 <img>）。
+ */
+export async function saveQuestionPng(
+  paperId: number,
+  questionId: number,
+  data: ArrayBuffer
+): Promise<{ relPath: string; url: string }> {
+  await ensurePaperDir(paperId)
+  const filename = `q_${questionId}.png`
+  const abs = join(imagesDir(paperId), filename)
+  await writeFile(abs, Buffer.from(data))
+  const relPath = `projects/${paperId}/images/${filename}`
+  return { relPath, url: `app://projects/${paperId}/images/${filename}` }
 }

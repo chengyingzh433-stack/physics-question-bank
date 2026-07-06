@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import type { SegmentDTO, QuestionDTO } from '@shared/types'
+import { EXPORT_DPI } from '@shared/constants'
 import { sourcePdfUrl } from '../services/ImportService'
 import { loadPdf, renderPageRegion, type PdfDocument } from '../services/RenderService'
+import {
+  renderSegmentsAtDpi,
+  composeQuestionCanvas,
+  canvasToPngArrayBuffer
+} from '../services/QuestionRenderService'
+import type { PageGeom } from '../services/ColumnCropService'
 
 interface ThumbState {
   loaded: boolean
@@ -121,6 +128,92 @@ function PostProcessView(): React.JSX.Element | null {
     [reloadAll]
   )
 
+  /**
+   * 完成入库（M4-2）：
+   * 1. 未删除且未成组的单片段各建一题；已合并用现有题。
+   * 2. 给每题赋 order_in_paper（取其 segments 最小 order_index 为代表序）。
+   * 3. renumber 为 1..N 连续。
+   * 4. 逐题 300DPI 渲染→R1 拼接→PNG→落盘→回写 image_path/尺寸。
+   * 5. status='done'。
+   */
+  const handleFinalize = useCallback(async () => {
+    if (!doc) return
+    setBusy(true)
+    setError(null)
+    try {
+      const allSegs = await window.api.getSegmentsByPaper(pid)
+      const liveSegs = allSegs.filter((s) => !s.is_deleted)
+      const existingQs = await window.api.listQuestionsByPaper(pid)
+
+      // 1. 未成组的单片段各建题
+      const groupedSegIds = new Set<number>()
+      for (const q of existingQs) {
+        const qs = await window.api.getQuestionSegments(q.id)
+        qs.forEach((s) => s.id !== undefined && groupedSegIds.add(s.id))
+      }
+      const newQuestionIds: number[] = [...existingQs.map((q) => q.id)]
+      for (const s of liveSegs) {
+        if (s.id !== undefined && !groupedSegIds.has(s.id)) {
+          const qid = await window.api.createQuestionWithSegments(pid, [s.id], null)
+          newQuestionIds.push(qid)
+          groupedSegIds.add(s.id)
+        }
+      }
+
+      // 2. 给每题赋代表 order（其 segments 最小 order_index）
+      const pagesMap = new Map<number, PageGeom>()
+      const pgs = await window.api.getPages(pid)
+      for (const p of pgs) {
+        pagesMap.set(p.id, {
+          page_index: p.page_index,
+          width_pt: p.width_pt ?? 0,
+          height_pt: p.height_pt ?? 0
+        })
+      }
+
+      type QOrder = { qid: number; segs: SegmentDTO[]; order: number }
+      const qOrders: QOrder[] = []
+      for (const qid of newQuestionIds) {
+        const segs = await window.api.getQuestionSegments(qid)
+        const order = segs.reduce((m, s) => Math.min(m, s.order_index ?? 0), Infinity)
+        qOrders.push({ qid, segs, order: order === Infinity ? 0 : order })
+      }
+      // 按 order 排序赋 order_in_paper
+      qOrders.sort((a, b) => a.order - b.order)
+      for (let i = 0; i < qOrders.length; i++) {
+        await window.api.setQuestionOrder(qOrders[i].qid, i + 1)
+      }
+
+      // 3. 逐题出图
+      for (const qo of qOrders) {
+        const segMap = await window.api.getQuestionSegmentMap(qo.qid)
+        const mergeOrderMap = new Map<number, number>(
+          segMap.map((m) => [m.segment_id, m.merge_order])
+        )
+        const rendered = await renderSegmentsAtDpi(doc, qo.segs, pagesMap, EXPORT_DPI, mergeOrderMap)
+        const { canvas, widthPx, heightPx } = composeQuestionCanvas(rendered)
+        const buf = await canvasToPngArrayBuffer(canvas)
+        const { relPath } = await window.api.saveQuestionPng(pid, qo.qid, buf)
+        await window.api.setQuestionImage(qo.qid, relPath, widthPx, heightPx)
+        // 释放离屏 canvas（A11）
+        canvas.width = 0
+        canvas.height = 0
+        rendered.forEach((r) => {
+          r.canvas.width = 0
+          r.canvas.height = 0
+        })
+      }
+
+      // 4. status=done
+      await window.api.setPaperStatus(pid, 'done')
+      await reloadAll()
+    } catch (e) {
+      setError('入库失败：' + String(e))
+    } finally {
+      setBusy(false)
+    }
+  }, [doc, pid, reloadAll])
+
   // 把每个 segment 按 question 分组（未合并的各自独立）
   const mergedGroups = questions.filter((q) => q.is_merged)
 
@@ -147,6 +240,9 @@ function PostProcessView(): React.JSX.Element | null {
         <span>已选 {selected.size}</span>
         <button onClick={handleMerge} disabled={busy || selected.size < 2}>
           合并选中
+        </button>
+        <button onClick={handleFinalize} disabled={busy} style={{ fontWeight: 700 }}>
+          {busy ? '入库中…' : '完成入库'}
         </button>
         <label style={{ marginLeft: 8 }}>
           <input

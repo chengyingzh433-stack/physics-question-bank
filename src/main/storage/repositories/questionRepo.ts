@@ -119,3 +119,12 @@ export function setPaperStatus(
     paperId
   )
 }
+
+/** 设置某题的 order_in_paper。 */
+export function setQuestionOrder(db: DB, questionId: number, orderInPaper: number): void {
+  db.prepare(`UPDATE questions SET order_in_paper = ?, updated_at = ? WHERE id = ?`).run(
+    orderInPaper,
+    new Date().toISOString(),
+    questionId
+  )
+}

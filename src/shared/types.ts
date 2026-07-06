@@ -72,6 +72,22 @@ export interface Api {
   ): Promise<number>
   deleteQuestion(questionId: number): Promise<void>
   renumberQuestions(paperId: number): Promise<void>
+  setQuestionOrder(questionId: number, orderInPaper: number): Promise<void>
+  setQuestionImage(
+    questionId: number,
+    imagePath: string,
+    widthPx: number,
+    heightPx: number
+  ): Promise<void>
+  setPaperStatus(
+    paperId: number,
+    status: 'importing' | 'cropping' | 'processing' | 'done'
+  ): Promise<void>
+  saveQuestionPng(
+    paperId: number,
+    questionId: number,
+    data: ArrayBuffer
+  ): Promise<{ relPath: string; url: string }>
 }
 
 // ---- 裁切相关 DTO ----

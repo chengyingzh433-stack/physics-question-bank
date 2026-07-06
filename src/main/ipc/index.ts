@@ -156,4 +156,29 @@ export function registerIpc(): void {
   ipcMain.handle('questions:renumber', (_e, paperId: number) => {
     questionRepo.renumberQuestions(getDb(), paperId)
   })
+
+  ipcMain.handle('questions:setOrder', (_e, questionId: number, orderInPaper: number) => {
+    questionRepo.setQuestionOrder(getDb(), questionId, orderInPaper)
+  })
+
+  ipcMain.handle(
+    'questions:setImage',
+    (_e, questionId: number, imagePath: string, widthPx: number, heightPx: number) => {
+      questionRepo.setQuestionImage(getDb(), questionId, imagePath, widthPx, heightPx)
+    }
+  )
+
+  ipcMain.handle(
+    'papers:setStatus',
+    (_e, paperId: number, status: 'importing' | 'cropping' | 'processing' | 'done') => {
+      questionRepo.setPaperStatus(getDb(), paperId, status)
+    }
+  )
+
+  ipcMain.handle(
+    'files:saveQuestionPng',
+    async (_e, paperId: number, questionId: number, data: ArrayBuffer) => {
+      return fileService.saveQuestionPng(paperId, questionId, data)
+    }
+  )
 }

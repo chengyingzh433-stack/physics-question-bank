@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   deriveSegments,
   segmentPixelRows,
-  ratioToPx
+  ratioToPx,
+  computeComposedSize,
+  computeSegmentXOffset
 } from './ColumnCropService'
 
 describe('deriveSegments', () => {
@@ -154,5 +156,35 @@ describe('segmentPixelRows (A5 相邻段像素相接)', () => {
     // R8: px = ratio * size_pt * (dpi/72)
     expect(ratioToPx(1, 842, 300)).toBeCloseTo(842 * (300 / 72), 5)
     expect(ratioToPx(0.5, 842, 72)).toBeCloseTo(421, 5)
+  })
+})
+
+describe('composeQuestionCanvas 尺寸数学 (R1)', () => {
+  it('取最大宽度，总高=各段高度之和', () => {
+    const r = computeComposedSize([
+      { widthPx: 200, heightPx: 100 },
+      { widthPx: 300, heightPx: 150 },
+      { widthPx: 250, heightPx: 120 }
+    ])
+    expect(r.widthPx).toBe(300) // 最大宽度
+    expect(r.heightPx).toBe(370) // 100+150+120
+  })
+
+  it('较窄段水平居中（x 偏移 = floor((maxW-segW)/2)）', () => {
+    expect(computeSegmentXOffset(200, 300)).toBe(50)
+    expect(computeSegmentXOffset(300, 300)).toBe(0)
+    expect(computeSegmentXOffset(201, 300)).toBe(49) // floor(99/2)=49
+  })
+
+  it('空列表返回 1x1', () => {
+    const r = computeComposedSize([])
+    expect(r.widthPx).toBe(1)
+    expect(r.heightPx).toBe(1)
+  })
+
+  it('单段：宽=段宽，高=段高', () => {
+    const r = computeComposedSize([{ widthPx: 400, heightPx: 200 }])
+    expect(r.widthPx).toBe(400)
+    expect(r.heightPx).toBe(200)
   })
 })

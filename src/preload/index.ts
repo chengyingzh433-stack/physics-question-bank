@@ -37,7 +37,15 @@ const api: Api = {
   createQuestionWithSegments: (paperId, segmentIds, orderInPaper) =>
     ipcRenderer.invoke('questions:createWithSegments', paperId, segmentIds, orderInPaper),
   deleteQuestion: (questionId) => ipcRenderer.invoke('questions:delete', questionId),
-  renumberQuestions: (paperId) => ipcRenderer.invoke('questions:renumber', paperId)
+  renumberQuestions: (paperId) => ipcRenderer.invoke('questions:renumber', paperId),
+  setQuestionOrder: (questionId, orderInPaper) =>
+    ipcRenderer.invoke('questions:setOrder', questionId, orderInPaper),
+  setQuestionImage: (questionId, imagePath, widthPx, heightPx) =>
+    ipcRenderer.invoke('questions:setImage', questionId, imagePath, widthPx, heightPx),
+  setPaperStatus: (paperId, status) =>
+    ipcRenderer.invoke('papers:setStatus', paperId, status),
+  saveQuestionPng: (paperId, questionId, data) =>
+    ipcRenderer.invoke('files:saveQuestionPng', paperId, questionId, data)
 }
 
 if (process.contextIsolated) {

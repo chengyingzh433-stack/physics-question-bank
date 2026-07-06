@@ -131,3 +131,29 @@ export function segmentPixelRows(
   const endPx = Math.floor(y1px)
   return { startPx, endPx: Math.max(endPx, startPx + 1) }
 }
+
+// ---- 入库标准图尺寸数学（纯函数；canvas 操作见 QuestionRenderService）----
+
+export interface PageGeom {
+  page_index: number
+  width_pt: number
+  height_pt: number
+}
+
+/**
+ * R1 合成的尺寸数学（纯函数，便于单测）：取最大宽度，总高 = 各段高度之和。
+ */
+export function computeComposedSize(sizes: { widthPx: number; heightPx: number }[]): {
+  widthPx: number
+  heightPx: number
+} {
+  if (sizes.length === 0) return { widthPx: 1, heightPx: 1 }
+  const maxWidth = Math.max(...sizes.map((s) => s.widthPx))
+  const totalHeight = sizes.reduce((sum, s) => sum + s.heightPx, 0)
+  return { widthPx: maxWidth, heightPx: totalHeight }
+}
+
+/** R1: 每段在合成 canvas 内的 x 偏移（水平居中）。 */
+export function computeSegmentXOffset(segWidth: number, maxWidth: number): number {
+  return Math.floor((maxWidth - segWidth) / 2)
+}

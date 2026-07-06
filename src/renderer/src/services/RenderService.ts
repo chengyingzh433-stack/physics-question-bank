@@ -156,4 +156,50 @@ export async function renderPageRegion(
   }
 }
 
+// ---- 高 DPI 渲染页面比例区域（入库/出图用，300 DPI）----
+
+/**
+ * 按 dpi 渲染某页的某比例区域到离屏 canvas，返回裁剪后的小 canvas。
+ * 用于入库标准图。A6 rotation。释放：调用方用完把 canvas 置空（A11）。
+ */
+export async function renderPageRegionAtDpi(
+  doc: PdfDocument,
+  pageIndex: number,
+  region: { x0: number; x1: number; y0: number; y1: number },
+  opts: { rotation: number; widthPt: number; heightPt: number; dpi: number }
+): Promise<{ canvas: HTMLCanvasElement; widthPx: number; heightPx: number }> {
+  const page = await doc.getPage(pageIndex + 1)
+  const scale = opts.dpi / 72 // R8
+  const viewport = page.getViewport({ scale, rotation: opts.rotation })
+
+  const fullCanvas = document.createElement('canvas')
+  fullCanvas.width = Math.floor(viewport.width)
+  fullCanvas.height = Math.floor(viewport.height)
+  const ctx = fullCanvas.getContext('2d')!
+  const renderTask = page.render({ canvas: fullCanvas, canvasContext: ctx, viewport })
+  try {
+    await renderTask.promise
+  } finally {
+    page.cleanup()
+  }
+
+  const fw = fullCanvas.width
+  const fh = fullCanvas.height
+  // A5: 区域边界用 floor，相邻段共用边界像素（这里单段独立裁剪，入库拼接由 ColumnCropService 处理）
+  const sx = Math.floor(region.x0 * fw)
+  const sy = Math.floor(region.y0 * fh)
+  const sw = Math.max(1, Math.floor(region.x1 * fw) - sx)
+  const sh = Math.max(1, Math.floor(region.y1 * fh) - sy)
+
+  const out = document.createElement('canvas')
+  out.width = sw
+  out.height = sh
+  const octx = out.getContext('2d')!
+  octx.drawImage(fullCanvas, sx, sy, sw, sh, 0, 0, sw, sh)
+  // 释放整页 canvas（A11）
+  fullCanvas.width = 0
+  fullCanvas.height = 0
+  return { canvas: out, widthPx: sw, heightPx: sh }
+}
+
 
