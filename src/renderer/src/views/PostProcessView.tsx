@@ -235,6 +235,7 @@ function PostProcessView(): React.JSX.Element | null {
       >
         <Link to="/" style={{ textDecoration: 'none', color: '#333' }}>← 返回</Link>
         <Link to={`/crop/${pid}`} style={{ textDecoration: 'none', color: '#333' }}>裁切</Link>
+        <Link to={`/review/${pid}`} style={{ textDecoration: 'none', color: '#333' }}>复查</Link>
         <strong style={{ marginLeft: 8 }}>后期处理</strong>
         <div style={{ flex: 1 }} />
         <span>已选 {selected.size}</span>

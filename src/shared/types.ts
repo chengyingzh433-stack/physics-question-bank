@@ -88,6 +88,37 @@ export interface Api {
     questionId: number,
     data: ArrayBuffer
   ): Promise<{ relPath: string; url: string }>
+  // question types
+  listQuestionTypes(): Promise<{ id: number; name: string; is_builtin: number }[]>
+  createQuestionType(name: string): Promise<number>
+  renameQuestionType(id: number, name: string): Promise<void>
+  deleteQuestionType(id: number): Promise<boolean>
+  setQuestionType(questionId: number, typeId: number | null): Promise<void>
+  // templates
+  listTemplates(): Promise<{ id: number; name: string; created_at: string }[]>
+  createTemplate(name: string): Promise<number>
+  deleteTemplate(id: number): Promise<void>
+  listRules(templateId: number): Promise<TemplateRuleDTO[]>
+  addRule(
+    templateId: number,
+    rule: { from_no: number; to_no: number; type_id: number; rule_order?: number }
+  ): Promise<number>
+  deleteRule(ruleId: number): Promise<void>
+}
+
+export interface TemplateRuleDTO {
+  id: number
+  template_id: number
+  from_no: number | null
+  to_no: number | null
+  type_id: number | null
+  rule_order: number | null
+}
+
+export interface QuestionTypeDTO {
+  id: number
+  name: string
+  is_builtin: number
 }
 
 // ---- 裁切相关 DTO ----

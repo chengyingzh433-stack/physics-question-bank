@@ -45,7 +45,21 @@ const api: Api = {
   setPaperStatus: (paperId, status) =>
     ipcRenderer.invoke('papers:setStatus', paperId, status),
   saveQuestionPng: (paperId, questionId, data) =>
-    ipcRenderer.invoke('files:saveQuestionPng', paperId, questionId, data)
+    ipcRenderer.invoke('files:saveQuestionPng', paperId, questionId, data),
+  // question types
+  listQuestionTypes: () => ipcRenderer.invoke('types:list'),
+  createQuestionType: (name) => ipcRenderer.invoke('types:create', name),
+  renameQuestionType: (id, name) => ipcRenderer.invoke('types:rename', id, name),
+  deleteQuestionType: (id) => ipcRenderer.invoke('types:delete', id),
+  setQuestionType: (questionId, typeId) =>
+    ipcRenderer.invoke('questions:setType', questionId, typeId),
+  // templates
+  listTemplates: () => ipcRenderer.invoke('templates:list'),
+  createTemplate: (name) => ipcRenderer.invoke('templates:create', name),
+  deleteTemplate: (id) => ipcRenderer.invoke('templates:delete', id),
+  listRules: (templateId) => ipcRenderer.invoke('templates:listRules', templateId),
+  addRule: (templateId, rule) => ipcRenderer.invoke('templates:addRule', templateId, rule),
+  deleteRule: (ruleId) => ipcRenderer.invoke('templates:deleteRule', ruleId)
 }
 
 if (process.contextIsolated) {

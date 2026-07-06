@@ -5,6 +5,8 @@ import * as paperRepo from '../storage/repositories/paperRepo'
 import * as pageRepo from '../storage/repositories/pageRepo'
 import * as segmentRepo from '../storage/repositories/segmentRepo'
 import * as questionRepo from '../storage/repositories/questionRepo'
+import * as questionTypeRepo from '../storage/repositories/questionTypeRepo'
+import * as templateRepo from '../storage/repositories/templateRepo'
 import * as fileService from '../files/FileService'
 import type { NewPageDTO, SegmentDTO } from '../../shared/types'
 
@@ -181,4 +183,44 @@ export function registerIpc(): void {
       return fileService.saveQuestionPng(paperId, questionId, data)
     }
   )
+
+  // ---- question types ----
+  ipcMain.handle('types:list', () => {
+    return questionTypeRepo.listQuestionTypes(getDb())
+  })
+  ipcMain.handle('types:create', (_e, name: string) => {
+    return questionTypeRepo.createQuestionType(getDb(), name)
+  })
+  ipcMain.handle('types:rename', (_e, id: number, name: string) => {
+    questionTypeRepo.renameQuestionType(getDb(), id, name)
+  })
+  ipcMain.handle('types:delete', (_e, id: number) => {
+    return questionTypeRepo.deleteQuestionType(getDb(), id)
+  })
+  ipcMain.handle('questions:setType', (_e, questionId: number, typeId: number | null) => {
+    questionTypeRepo.setQuestionType(getDb(), questionId, typeId)
+  })
+
+  // ---- templates ----
+  ipcMain.handle('templates:list', () => {
+    return templateRepo.listTemplates(getDb())
+  })
+  ipcMain.handle('templates:create', (_e, name: string) => {
+    return templateRepo.createTemplate(getDb(), name)
+  })
+  ipcMain.handle('templates:delete', (_e, id: number) => {
+    templateRepo.deleteTemplate(getDb(), id)
+  })
+  ipcMain.handle('templates:listRules', (_e, templateId: number) => {
+    return templateRepo.listRules(getDb(), templateId)
+  })
+  ipcMain.handle(
+    'templates:addRule',
+    (_e, templateId: number, rule: { from_no: number; to_no: number; type_id: number; rule_order?: number }) => {
+      return templateRepo.addRule(getDb(), templateId, rule)
+    }
+  )
+  ipcMain.handle('templates:deleteRule', (_e, ruleId: number) => {
+    templateRepo.deleteRule(getDb(), ruleId)
+  })
 }

@@ -58,6 +58,12 @@ function HomeView(): React.JSX.Element {
         <button onClick={handleImport} disabled={busy}>
           {busy ? '导入中…' : '导入试卷 PDF'}
         </button>
+        <a
+          href="#/templates"
+          style={{ marginLeft: 12, textDecoration: 'none', color: '#0078d7' }}
+        >
+          题型与模板管理
+        </a>
       </div>
       {error && (
         <div style={{ color: 'crimson', marginBottom: 12 }}>{error}</div>
