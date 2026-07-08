@@ -10,6 +10,7 @@ export type PdfDocument = PDFDocumentProxy
 export interface PageSize {
   width_pt: number
   height_pt: number
+  rotation: number
 }
 
 /** 加载 PDF 文档（接受 app:// 或 http URL）。返回 doc 与释放句柄。 */
@@ -29,7 +30,7 @@ export async function getPageSize(
   const page = await doc.getPage(pageIndex + 1) // pdfjs 页码从 1 开始
   // A6: 传 rotation，用 viewport 的 width/height（已含旋转）
   const vp = page.getViewport({ scale: 1, rotation: page.rotate })
-  const size = { width_pt: vp.width, height_pt: vp.height }
+  const size = { width_pt: vp.width, height_pt: vp.height, rotation: page.rotate }
   page.cleanup()
   return size
 }
@@ -121,27 +122,35 @@ export async function renderPageRegion(
   const ctx = fullCanvas.getContext('2d')!
 
   const renderTask = page.render({ canvasContext: ctx, viewport })
+  const cancel = () => renderTask.cancel()
+
+  // 必须等渲染完成后再裁剪，否则 drawImage 时 fullCanvas 还是空白
   const done = renderTask.promise.then(() => {
     page.cleanup()
   })
 
-  const cancel = () => renderTask.cancel()
+  const result = renderTask.promise.then(() => {
+    const fw = fullCanvas.width
+    const fh = fullCanvas.height
+    const sx = Math.floor(region.x0 * fw)
+    const sy = Math.floor(region.y0 * fh)
+    const sw = Math.max(1, Math.floor(region.x1 * fw) - sx)
+    const sh = Math.max(1, Math.floor(region.y1 * fh) - sy)
 
-  const fw = fullCanvas.width
-  const fh = fullCanvas.height
-  const sx = Math.floor(region.x0 * fw)
-  const sy = Math.floor(region.y0 * fh)
-  const sw = Math.max(1, Math.floor(region.x1 * fw) - sx)
-  const sh = Math.max(1, Math.floor(region.y1 * fh) - sy)
+    const out = document.createElement('canvas')
+    out.width = sw
+    out.height = sh
+    const octx = out.getContext('2d')!
+    octx.drawImage(fullCanvas, sx, sy, sw, sh, 0, 0, sw, sh)
+    // 释放整页 canvas（A11）
+    fullCanvas.width = 0
+    fullCanvas.height = 0
+    return { canvas: out, widthPx: sw, heightPx: sh }
+  })
 
-  const out = document.createElement('canvas')
-  out.width = sw
-  out.height = sh
-  const octx = out.getContext('2d')!
-  octx.drawImage(fullCanvas, sx, sy, sw, sh, 0, 0, sw, sh)
-
+  const rendered = await result
   return {
-    result: { canvas: out, widthPx: sw, heightPx: sh },
+    result: rendered,
     cancel,
     done
   }

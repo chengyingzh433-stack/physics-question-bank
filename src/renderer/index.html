@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>物理教师题库管理系统</title>
+    <script>
+      // 防亮暗模式闪烁,在 React 渲染前就读取偏好设置 color-scheme
+      try {
+        var stored = localStorage.getItem('mantine-color-scheme')
+        var scheme = stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+        document.documentElement.style.colorScheme = scheme
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

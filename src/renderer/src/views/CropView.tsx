@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import {
+  Group,
+  SegmentedControl,
+  ActionIcon,
+  Tooltip,
+  Text
+} from '@mantine/core'
+import { IconArrowLeft, IconArrowBackUp, IconSquare } from '@tabler/icons-react'
 import { sourcePdfUrl } from '../services/ImportService'
 import { useCropData } from '../services/useCropData'
 import PDFViewer, { type ZoomMode } from './PDFViewer'
 import CropOverlay from './CropOverlay'
 
-export type ToolMode = 'pan' | 'cut'
+export type ToolMode = 'pan' | 'cut' | 'box-split' | 'box-exclude'
 
 function CropView(): React.JSX.Element | null {
   const { paperId } = useParams<{ paperId: string }>()
@@ -17,7 +25,6 @@ function CropView(): React.JSX.Element | null {
   const [toolMode, setToolMode] = useState<ToolMode>('pan')
   const [activePageId, setActivePageId] = useState<number | null>(null)
 
-  // 选当前页：默认第一页
   useEffect(() => {
     if (crop.pages.length > 0 && activePageId === null) {
       setActivePageId(crop.pages[0].id)
@@ -26,30 +33,8 @@ function CropView(): React.JSX.Element | null {
 
   const activePage = crop.pages.find((p) => p.id === activePageId) ?? null
 
-  // Ctrl+滚轮缩放（A4: 以光标锚点不在此实现缩放值，仅改百分比；滚动交给容器）
-  const onWheel = useCallback(
-    (e: React.WheelEvent) => {
-      if (!e.ctrlKey && !e.metaKey) return
-      e.preventDefault()
-      const delta = e.deltaY < 0 ? 25 : -25
-      setZoomMode('percent')
-      setZoomPercent((p) => {
-        const base = p <= 0 ? 100 : p
-        return Math.max(25, Math.min(400, base + delta))
-      })
-    },
-    []
-  )
-
-  // 工具栏操作
-  const handleFitWidth = () => {
-    setZoomMode('fit-width')
-    setZoomPercent(-1)
-  }
-  const handleFitPage = () => {
-    setZoomMode('fit-page')
-    setZoomPercent(-2)
-  }
+  const handleFitWidth = () => { setZoomMode('fit-width'); setZoomPercent(-1) }
+  const handleFitPage = () => { setZoomMode('fit-page'); setZoomPercent(-2) }
   const handleZoomPct = (pct: number) => {
     if (pct === -1) return handleFitWidth()
     if (pct === -2) return handleFitPage()
@@ -58,72 +43,84 @@ function CropView(): React.JSX.Element | null {
   }
 
   if (!crop.loaded) {
-    return <div style={{ padding: 24 }}>加载中…</div>
+    return <Text p="md" c="dimmed">加载中…</Text>
   }
   if (!crop.paper) {
-    return <div style={{ padding: 24 }}>未找到试卷 (id={pid})</div>
+    return <Text p="md" c="red">未找到试卷 (id={pid})</Text>
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      {/* 顶栏 */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          alignItems: 'center',
-          padding: 8,
-          background: '#f5f5f5',
-          borderBottom: '1px solid #ddd'
-        }}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* 工具栏 */}
+      <Group
+        gap="sm"
+        p="xs"
+        justify="space-between"
+        style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
       >
-        <a href="#/" style={{ textDecoration: 'none', color: '#333' }}>
-          ← 返回
-        </a>
-        <a href={`#/post/${pid}`} style={{ textDecoration: 'none', color: '#333', marginLeft: 8 }}>
-          后期处理 →
-        </a>
-        <strong style={{ marginLeft: 8 }}>{crop.paper.name}</strong>
-        <span style={{ color: '#999' }}>{crop.pages.length} 页</span>
-        <div style={{ flex: 1 }} />
-        {/* 列模式 */}
-        <span>列模式：</span>
-        {[1, 2, 3].map((m) => (
-          <button
-            key={m}
-            disabled={!activePage}
-            onClick={() => activePage && crop.setColumnMode(activePage.id, m)}
-            style={{
-              fontWeight: activePage?.column_mode === m ? 700 : 400
-            }}
-          >
-            {m}
-          </button>
-        ))}
-        <span style={{ width: 1, background: '#ccc', height: 20, margin: '0 8px' }} />
-        {/* 工具模式 */}
-        <button
-          onClick={() => setToolMode('pan')}
-          style={{ fontWeight: toolMode === 'pan' ? 700 : 400 }}
-        >
-          平移
-        </button>
-        <button
-          onClick={() => setToolMode('cut')}
-          style={{ fontWeight: toolMode === 'cut' ? 700 : 400 }}
-        >
-          横切
-        </button>
-        <button
-          disabled={!activePage}
-          onClick={() => activePage && crop.undoLastCutLine(activePage.id)}
-        >
-          撤销上一刀
-        </button>
-      </div>
+        {/* 左: 返回 + 试卷名 */}
+        <Group gap="sm">
+          <Tooltip label="返回主页">
+            <ActionIcon variant="subtle" component="a" href="#/">
+              <IconArrowLeft size={18} />
+            </ActionIcon>
+          </Tooltip>
+          <Text fw={600} size="sm">{crop.paper.name}</Text>
+          <Text size="xs" c="dimmed">{crop.pages.length} 页</Text>
+        </Group>
 
-      {/* 查看器 + 覆盖层 */}
-      <div onWheel={onWheel} style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        {/* 中: 列模式 + 工具 + 撤销 */}
+        <Group gap="md">
+          <SegmentedControl
+            size="xs"
+            value={String(activePage?.column_mode ?? 1)}
+            onChange={(v) => activePage && crop.setColumnMode(activePage.id, Number(v))}
+            data={[
+              { value: '1', label: '1 列' },
+              { value: '2', label: '2 列' },
+              { value: '3', label: '3 列' }
+            ]}
+            disabled={!activePage}
+          />
+          <SegmentedControl
+            size="xs"
+            value={toolMode}
+            onChange={(v) => setToolMode(v as ToolMode)}
+            data={[
+              { value: 'pan', label: '🤚 平移' },
+              { value: 'cut', label: '✂️ 横切' },
+              { value: 'box-split', label: '⬚ 框选' },
+              { value: 'box-exclude', label: '⛔ 排除' }
+            ]}
+          />
+          <Tooltip label="撤销上一刀">
+            <ActionIcon
+              variant="subtle"
+              color="orange"
+              disabled={!activePage}
+              onClick={() => activePage && crop.undoLastCutLine(activePage.id)}
+            >
+              <IconArrowBackUp size={18} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="撤销上一框">
+            <ActionIcon
+              variant="subtle"
+              color="violet"
+              disabled={!activePage}
+              onClick={() => activePage && crop.undoLastManualBox(activePage.id)}
+            >
+              <IconSquare size={18} />
+            </ActionIcon>
+          </Tooltip>
+        </Group>
+
+        {/* 右: 缩放控件由 PDFViewer 内置 */}
+        <div />
+      </Group>
+
+      {/* 查看器 + 覆盖层（Ctrl+滚轮锚点缩放由 PDFViewer 内部处理，T4）*/}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <PDFViewer
           sourceUrl={sourcePdfUrl(pid)}
           pages={crop.pages}
@@ -139,10 +136,15 @@ function CropView(): React.JSX.Element | null {
               page={page}
               dividers={crop.dividers[page.id] ?? []}
               cutLines={crop.cutLines[page.id] ?? []}
+              manualBoxes={crop.manualBoxes[page.id] ?? []}
               toolMode={toolMode}
               onReplaceDividers={(xs) => crop.replaceDividers(page.id, xs)}
               onAddCutLine={(col, y) => crop.addCutLine(page.id, col, y)}
               onDeleteCutLine={(id) => crop.deleteCutLine(id, page.id)}
+              onAddManualBox={(x0, y0, x1, y1, isExcluded) =>
+                crop.addManualBox(page.id, x0, y0, x1, y1, isExcluded)
+              }
+              onDeleteManualBox={(id) => crop.deleteManualBox(id, page.id)}
             />
           )}
         />

@@ -1,14 +1,26 @@
 import { app, protocol, net } from 'electron'
-import { join } from 'path'
-import { copyFile, mkdir, access, writeFile } from 'fs/promises'
+import { join, sep, relative } from 'path'
+import { copyFile, mkdir, access, writeFile, rm, readdir, cp } from 'fs/promises'
 import { pathToFileURL } from 'url'
+import { getDb } from '../storage/StorageService'
 
-/** 试卷项目根目录：userData/projects/{paperId}/ */
-export function paperDir(paperId: number): string {
-  return join(app.getPath('userData'), 'projects', String(paperId))
+/** 试卷项目根目录（可配置）。
+ *  读取 app_settings 的 storage_path，有值用自定义路径，否则回退 userData/projects/。
+ *  每次调用时动态读取，不缓存——用户可能中途改了存储位置。 */
+export function getProjectsRoot(): string {
+  const row = getDb().prepare('SELECT value FROM app_settings WHERE key = ?').get('storage_path') as
+    | { value: string }
+    | undefined
+  if (row?.value) return row.value
+  return join(app.getPath('userData'), 'projects')
 }
 
-/** 试卷图片目录：userData/projects/{paperId}/images/ */
+/** 试卷项目根目录：{projectsRoot}/{paperId}/ */
+export function paperDir(paperId: number): string {
+  return join(getProjectsRoot(), String(paperId))
+}
+
+/** 试卷图片目录：{projectsRoot}/{paperId}/images/ */
 export function imagesDir(paperId: number): string {
   return join(paperDir(paperId), 'images')
 }
@@ -17,6 +29,28 @@ export function imagesDir(paperId: number): string {
 export async function ensurePaperDir(paperId: number): Promise<void> {
   await mkdir(paperDir(paperId), { recursive: true })
   await mkdir(imagesDir(paperId), { recursive: true })
+}
+
+/**
+ * 删除某试卷的整个项目目录（source.pdf + images/）。
+ * 严格安全校验：paperId 必须为正整数，目标路径必须解析后仍在 projects/ 根目录之下，
+ * 且相对路径不以 .. 开头（防穿越）。目录不存在视为成功（force:true）。
+ */
+export async function deletePaperDir(paperId: number): Promise<void> {
+  // 整数校验兜底：paperId 来自 DB 主键，天然可信，但仍拒绝非正整数
+  if (!Number.isInteger(paperId) || paperId <= 0) return
+  const root = getProjectsRoot()
+  const target = paperDir(paperId) // .../projects/{id}
+  // 防穿越：相对 root 的路径必须不以 .. 开头，且 target 必须在 root 之下
+  const rel = relative(root, target)
+  if (rel.startsWith('..') || rel === '') return
+  // 再次确认 target 真的在 root 之下（双保险，防 symlink/边界）
+  const resolvedTarget = target
+  const resolvedRoot = root
+  if (!resolvedTarget.startsWith(resolvedRoot + sep) && resolvedTarget !== resolvedRoot) {
+    return
+  }
+  await rm(target, { recursive: true, force: true })
 }
 
 /** 复制来源 PDF 到项目目录为 source.pdf，返回目标路径。A8: 用 path.join。 */
@@ -67,10 +101,10 @@ export function registerAppProtocol(): void {
   ])
 }
 
-/** 在 app.whenReady 后调用：实际挂载文件读取。 */
+/** 在 app.whenReady 后调用：实际挂载文件读取。每次请求动态读取根路径（支持运行时切换存储位置）。 */
 export function handleAppProtocol(): void {
-  const root = join(app.getPath('userData'), 'projects')
   protocol.handle('app', async (request) => {
+    const root = getProjectsRoot()
     // 期望路径形如 app://projects/{paperId}/source.pdf
     const url = new URL(request.url)
     // host 在 standard scheme 下是 'projects'，pathname 是 /{paperId}/...
@@ -104,4 +138,43 @@ export async function saveQuestionPng(
   await writeFile(abs, Buffer.from(data))
   const relPath = `projects/${paperId}/images/${filename}`
   return { relPath, url: `app://projects/${paperId}/images/${filename}` }
+}
+
+/**
+ * 迁移项目文件到新存储路径。
+ * 流程：mkdir 新路径 → 逐项复制旧数据 → 写设置 → 删旧数据。
+ * 任一步骤失败则抛出错误，旧数据保留、设置不更新。
+ */
+export async function migrateStorage(newPath: string): Promise<void> {
+  const oldRoot = getProjectsRoot()
+  // 同一路径无需迁移
+  if (oldRoot === newPath) return
+
+  // 确保新路径存在
+  await mkdir(newPath, { recursive: true })
+
+  // 遍历旧路径下每个子目录，复制到新路径
+  let entries: string[]
+  try {
+    entries = await readdir(oldRoot)
+  } catch {
+    // 旧目录不存在（首次使用），直接设新路径即可
+    entries = []
+  }
+
+  for (const name of entries) {
+    const src = join(oldRoot, name)
+    const dst = join(newPath, name)
+    await cp(src, dst, { recursive: true, force: true })
+  }
+
+  // 全部复制成功，更新设置
+  getDb()
+    .prepare('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+    .run('storage_path', newPath)
+
+  // 删除旧目录下已迁移的子目录（不删根目录本身，避免误删）
+  for (const name of entries) {
+    await rm(join(oldRoot, name), { recursive: true, force: true })
+  }
 }

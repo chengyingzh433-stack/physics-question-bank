@@ -50,6 +50,12 @@ export function initDatabase(): void {
     })
     seed()
   }
+
+  // 幂等迁移：pages.rotation（T5，A6 旋转页支持）
+  const cols = db.prepare("PRAGMA table_info(pages)").all() as { name: string }[]
+  if (!cols.some((c) => c.name === 'rotation')) {
+    db.exec('ALTER TABLE pages ADD COLUMN rotation INTEGER NOT NULL DEFAULT 0')
+  }
 }
 
 /** 仅测试/关闭时使用。 */

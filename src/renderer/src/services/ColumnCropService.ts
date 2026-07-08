@@ -1,6 +1,7 @@
 import type {
   ColumnDividerDTO,
   CutLineDTO,
+  ManualBoxDTO,
   SegmentDTO
 } from '@shared/types'
 
@@ -156,4 +157,100 @@ export function computeComposedSize(sizes: { widthPx: number; heightPx: number }
 /** R1: 每段在合成 canvas 内的 x 偏移（水平居中）。 */
 export function computeSegmentXOffset(segWidth: number, maxWidth: number): number {
   return Math.floor((maxWidth - segWidth) / 2)
+}
+
+// ---- 框选合并（deriveAllSegments）----
+
+/** 两比例坐标矩形是否有面积重叠（AABB 相交判定）。边界相切不算重叠。 */
+export function rectsOverlap(
+  a: { x0: number; x1: number; y0: number; y1: number },
+  b: { x0: number; x1: number; y0: number; y1: number }
+): boolean {
+  return a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0
+}
+
+/** y 分桶容差：同容差内视为同一行（行优先排序用）。 */
+const ROW_BUCKET_TOLERANCE = 0.02
+
+/**
+ * 合并「分列+横切推导片段」与「手画框」，产出最终片段列表。
+ *
+ * 合并语义（决策 B）：
+ *   最终 = ( deriveSegments 推导片段 − 与任一排除框相交的 ) ∪ ( 所有分割框 )
+ * 分割框不过排除筛——排除框只减推导片段，不减分割框。
+ *
+ * 排序（决策 C）：
+ * - 无分割框时：原样返回 deriveSegments（含原 order_index），红线 5 保证。
+ * - 有分割框时：全页片段按 (y 分桶, x) 行优先重排 order_index。
+ */
+export function deriveAllSegments(
+  page: PageCropInput,
+  dividers: ColumnDividerDTO[],
+  cutLines: CutLineDTO[],
+  manualBoxes: ManualBoxDTO[]
+): SegmentDTO[] {
+  // 1. 推导片段（deriveSegments 一行不改）
+  const derived = deriveSegments(page, dividers, cutLines)
+
+  // 2. 拆 manualBoxes
+  const excludeBoxes = manualBoxes.filter((b) => b.is_excluded === 1)
+  const splitBoxes = manualBoxes.filter((b) => b.is_excluded === 0)
+
+  // 3. 推导片段过排除筛（只筛推导片段，决策 B）
+  const filtered = derived.filter((seg) => {
+    const segRect = {
+      x0: seg.x_start_ratio,
+      x1: seg.x_end_ratio,
+      y0: seg.y_start_ratio,
+      y1: seg.y_end_ratio
+    }
+    return !excludeBoxes.some((box) =>
+      rectsOverlap(segRect, {
+        x0: box.x_start_ratio,
+        x1: box.x_end_ratio,
+        y0: box.y_start_ratio,
+        y1: box.y_end_ratio
+      })
+    )
+  })
+
+  // 4. 分割框转 SegmentDTO 直接加入（不过排除筛）
+  const splitSegs: SegmentDTO[] = splitBoxes.map((box) => ({
+    paper_id: page.paper_id,
+    page_id: page.page_id,
+    col_index: -1, // -1 标记手画
+    x_start_ratio: box.x_start_ratio,
+    x_end_ratio: box.x_end_ratio,
+    y_start_ratio: box.y_start_ratio,
+    y_end_ratio: box.y_end_ratio,
+    order_index: 0, // 后面统一排
+    is_deleted: 0
+  }))
+
+  const merged = [...filtered, ...splitSegs]
+
+  // 5. 排序（决策 C）
+  if (splitBoxes.length === 0) {
+    // 无分割框 → 原样返回（红线 5：order_index 保持 deriveSegments 原值）
+    return filtered
+  }
+
+  // 有分割框 → 行优先重排
+  merged.sort((a, b) => {
+    // y 分桶：差在容差内视为同一行
+    const yDiff = a.y_start_ratio - b.y_start_ratio
+    if (Math.abs(yDiff) > ROW_BUCKET_TOLERANCE) {
+      return yDiff < 0 ? -1 : 1 // 跨行按 y 升序
+    }
+    // 同行内按 x 升序
+    const xDiff = a.x_start_ratio - b.x_start_ratio
+    return xDiff < 0 ? -1 : xDiff > 0 ? 1 : 0
+  })
+
+  // 重编 order_index
+  for (let i = 0; i < merged.length; i++) {
+    merged[i].order_index = i
+  }
+
+  return merged
 }

@@ -1,6 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import {
+  Text,
+  Group,
+  TextInput,
+  Button,
+  Paper,
+  ActionIcon,
+  Stack,
+  Tooltip,
+  Affix,
+  LoadingOverlay
+} from '@mantine/core'
+import { notifications } from '@mantine/notifications'
+import { IconArrowUp, IconArrowDown, IconTrash, IconFileExport } from '@tabler/icons-react'
 import type { BankQuestionDTO, PaperSetItemDTO } from '@shared/types'
+import { EmptyState } from '../components/EmptyState'
+import { IconClipboardList } from '@tabler/icons-react'
 
 function BasketView(): React.JSX.Element {
   const [, setSetId] = useState<number | null>(null)
@@ -9,164 +24,175 @@ function BasketView(): React.JSX.Element {
   const [groupHeaders, setGroupHeaders] = useState<Record<number, string>>({})
   const [exportTitle, setExportTitle] = useState('物理试卷')
   const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
     const sid = await window.api.getOrCreateDraftSet()
     setSetId(sid)
     const its = await window.api.listSetItems(sid)
     setItems(its)
-    // 初始化 group_header 编辑态
     const gh: Record<number, string> = {}
-    its.forEach((it) => {
-      gh[it.id] = it.group_header ?? ''
-    })
+    its.forEach((it) => { gh[it.id] = it.group_header ?? '' })
     setGroupHeaders(gh)
-    // 拉全部题做映射
     const all = await window.api.listBankQuestions({})
     const m: Record<number, BankQuestionDTO> = {}
     all.forEach((q) => (m[q.id] = q))
     setQMap(m)
   }, [])
 
-  useEffect(() => {
-    reload()
+  useEffect(() => { reload() }, [reload])
+
+  const handleRemove = useCallback(async (itemId: number) => {
+    await window.api.removeFromSet(itemId)
+    await reload()
   }, [reload])
 
-  const handleRemove = useCallback(
-    async (itemId: number) => {
-      await window.api.removeFromSet(itemId)
-      await reload()
-    },
-    [reload]
-  )
+  const move = useCallback(async (idx: number, dir: -1 | 1) => {
+    const target = idx + dir
+    if (target < 0 || target >= items.length) return
+    const a = items[idx]
+    const b = items[target]
+    const aOrder = a.order_index ?? idx
+    const bOrder = b.order_index ?? target
+    await window.api.updateSetItem(a.id, { order_index: bOrder })
+    await window.api.updateSetItem(b.id, { order_index: aOrder })
+    await reload()
+  }, [items, reload])
 
-  // 上移/下移：交换相邻 order_index
-  const move = useCallback(
-    async (idx: number, dir: -1 | 1) => {
-      const target = idx + dir
-      if (target < 0 || target >= items.length) return
-      const a = items[idx]
-      const b = items[target]
-      const aOrder = a.order_index ?? idx
-      const bOrder = b.order_index ?? target
-      await window.api.updateSetItem(a.id, { order_index: bOrder })
-      await window.api.updateSetItem(b.id, { order_index: aOrder })
-      await reload()
-    },
-    [items, reload]
-  )
-
-  const handleGroupHeader = useCallback(
-    async (itemId: number, value: string) => {
-      setGroupHeaders((m) => ({ ...m, [itemId]: value }))
-      await window.api.updateSetItem(itemId, { group_header: value || null })
-    },
-    []
-  )
+  const handleGroupHeader = useCallback(async (itemId: number, value: string) => {
+    setGroupHeaders((m) => ({ ...m, [itemId]: value }))
+    await window.api.updateSetItem(itemId, { group_header: value || null })
+  }, [])
 
   const handleExport = useCallback(async () => {
     setBusy(true)
-    setMsg(null)
     try {
       const sid = await window.api.getOrCreateDraftSet()
       const path = await window.api.exportBasketPdf(sid, exportTitle)
-      if (path) setMsg('已导出：' + path)
-      else setMsg('已取消')
+      if (path) {
+        notifications.show({ title: '导出成功', message: path, color: 'green' })
+      }
     } catch (e) {
-      setMsg('导出失败：' + String(e))
+      notifications.show({ title: '导出失败', message: String(e), color: 'red' })
     } finally {
       setBusy(false)
     }
   }, [exportTitle])
 
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        icon={IconClipboardList}
+        title="组卷篮为空"
+        description="去题库浏览页勾选题目加入篮"
+        actionLabel="去题库浏览"
+        onAction={() => { /* 由侧栏导航处理 */ }}
+      />
+    )
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <div
-        style={{
-          display: 'flex',
-          gap: 8,
-          alignItems: 'center',
-          padding: 8,
-          background: '#f5f5f5',
-          borderBottom: '1px solid #ddd'
-        }}
-      >
-        <Link to="/bank" style={{ textDecoration: 'none', color: '#333' }}>← 返回题库</Link>
-        <strong style={{ marginLeft: 8 }}>组卷篮</strong>
-        <span style={{ color: '#999' }}>{items.length} 题</span>
-        <div style={{ flex: 1 }} />
-        <input
-          value={exportTitle}
-          onChange={(e) => setExportTitle(e.target.value)}
-          placeholder="试卷标题"
-          style={{ width: 160 }}
-        />
-        <button onClick={handleExport} disabled={busy || items.length === 0}>
-          {busy ? '导出中…' : '导出 PDF'}
-        </button>
-        <Link to="/" style={{ textDecoration: 'none', color: '#333', marginLeft: 8 }}>主页</Link>
-      </div>
+    <div style={{ position: 'relative', minHeight: '100%', paddingBottom: 80 }}>
+      <LoadingOverlay visible={busy} />
 
-      {msg && <div style={{ padding: 8, background: '#fffde7' }}>{msg}</div>}
+      <Stack gap="sm" p="md">
+        <Group justify="space-between">
+          <Text size="xl" fw={700}>组卷篮</Text>
+          <Text size="sm" c="dimmed">{items.length} 题</Text>
+        </Group>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: 12, background: '#eee' }}>
-        {items.length === 0 && <div>篮内为空，去题库勾选加入。</div>}
         {items.map((it, idx) => {
           const q = qMap[it.question_id]
           return (
-            <div
-              key={it.id}
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 8,
-                background: '#fff',
-                border: '1px solid #ccc',
-                borderRadius: 6,
-                padding: 8,
-                marginBottom: 8
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <button onClick={() => move(idx, -1)} disabled={idx === 0}>
-                  ↑
-                </button>
-                <button onClick={() => move(idx, 1)} disabled={idx === items.length - 1}>
-                  ↓
-                </button>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <strong>第 {idx + 1} 项</strong>
-                  {q && (
-                    <span style={{ fontSize: 12, color: '#666' }}>
-                      {q.paper_name} · 原第{q.order_in_paper}题
-                    </span>
+            <Paper key={it.id} p="sm" radius="md" withBorder>
+              <Group align="flex-start" wrap="nowrap" gap="sm">
+                {/* 上下移 */}
+                <Stack gap={2}>
+                  <Tooltip label="上移">
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      disabled={idx === 0}
+                      onClick={() => move(idx, -1)}
+                    >
+                      <IconArrowUp size={14} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="下移">
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      disabled={idx === items.length - 1}
+                      onClick={() => move(idx, 1)}
+                    >
+                      <IconArrowDown size={14} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Stack>
+
+                {/* 题目内容 */}
+                <div style={{ flex: 1 }}>
+                  <Group gap="xs" mb={4}>
+                    <Text fw={600} size="sm">第 {idx + 1} 项</Text>
+                    {q && (
+                      <Text size="xs" c="dimmed">
+                        {q.paper_name} · 原第{q.order_in_paper}题
+                      </Text>
+                    )}
+                  </Group>
+                  <Group gap="xs" mb={4}>
+                    <Text size="xs" c="dimmed">分组标题：</Text>
+                    <TextInput
+                      value={groupHeaders[it.id] ?? ''}
+                      onChange={(e) => handleGroupHeader(it.id, e.currentTarget.value)}
+                      placeholder="（可选）"
+                      size="xs"
+                      w={200}
+                    />
+                  </Group>
+                  {q && q.image_path && (
+                    <img
+                      src={`app://projects/${q.paper_id}/images/q_${q.id}.png`}
+                      alt={`题${q.id}`}
+                      style={{ maxWidth: 300, display: 'block', borderRadius: 'var(--mantine-radius-sm)' }}
+                    />
                   )}
                 </div>
-                <div style={{ margin: '4px 0' }}>
-                  <span style={{ fontSize: 13 }}>分组标题：</span>
-                  <input
-                    value={groupHeaders[it.id] ?? ''}
-                    onChange={(e) => handleGroupHeader(it.id, e.target.value)}
-                    placeholder="（可选）"
-                    style={{ width: 200 }}
-                  />
-                </div>
-                {q && q.image_path && (
-                  <img
-                    src={`app://projects/${q.paper_id}/images/q_${q.id}.png`}
-                    alt={`题${q.id}`}
-                    style={{ maxWidth: 300, display: 'block' }}
-                  />
-                )}
-              </div>
-              <button onClick={() => handleRemove(it.id)}>移除</button>
-            </div>
+
+                {/* 移除 */}
+                <Tooltip label="移除">
+                  <ActionIcon variant="subtle" color="red" onClick={() => handleRemove(it.id)}>
+                    <IconTrash size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+            </Paper>
           )
         })}
-      </div>
+      </Stack>
+
+      {/* 固定底栏 */}
+      <Affix position={{ bottom: 0, left: 220, right: 0 }}>
+        <Paper shadow="md" p="md" radius={0} withBorder style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>
+          <Group justify="space-between">
+            <TextInput
+              label="试卷标题"
+              value={exportTitle}
+              onChange={(e) => setExportTitle(e.currentTarget.value)}
+              size="sm"
+              w={240}
+            />
+            <Button
+              color="sky"
+              leftSection={<IconFileExport size={16} />}
+              onClick={handleExport}
+              loading={busy}
+              disabled={items.length === 0}
+            >
+              导出 PDF
+            </Button>
+          </Group>
+        </Paper>
+      </Affix>
     </div>
   )
 }

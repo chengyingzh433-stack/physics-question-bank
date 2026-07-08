@@ -21,6 +21,7 @@ export interface PageDTO {
   width_pt: number | null
   height_pt: number | null
   column_mode: number
+  rotation: number
 }
 
 export interface NewPageDTO {
@@ -28,6 +29,7 @@ export interface NewPageDTO {
   page_index: number
   width_pt: number
   height_pt: number
+  rotation: number
 }
 
 export interface Api {
@@ -52,6 +54,19 @@ export interface Api {
   addCutLine(pageId: number, colIndex: number, yRatio: number): Promise<number>
   undoLastCutLine(pageId: number): Promise<number | null>
   deleteCutLine(cutLineId: number): Promise<void>
+  // manual boxes
+  listManualBoxes(pageId: number): Promise<ManualBoxDTO[]>
+  addManualBox(
+    pageId: number,
+    paperId: number,
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    isExcluded: number
+  ): Promise<number>
+  deleteManualBox(boxId: number): Promise<void>
+  undoLastManualBox(pageId: number): Promise<number | null>
   // segments
   getSegmentsByPage(pageId: number): Promise<SegmentDTO[]>
   getSegmentsByPaper(paperId: number): Promise<SegmentDTO[]>
@@ -135,6 +150,22 @@ export interface Api {
     }
   ): Promise<void>
   exportBasketPdf(setId: number, title: string): Promise<string | null>
+
+  /** 备份数据库到用户选定路径（M12-2）。返回保存路径，取消返回 null。 */
+  backupDatabase(): Promise<string | null>
+
+  /** 读/写应用设置（M12-2）。key 如 'export_dpi'。 */
+  getSetting(key: string, defaultValue: string): Promise<string>
+  setSetting(key: string, value: string): Promise<void>
+
+  /** 存储位置：弹出选择目录对话框 */
+  openDirectoryDialog(): Promise<string | null>
+  /** 存储位置：迁移项目文件到新路径 */
+  migrateStorage(newPath: string): Promise<void>
+  /** 存储位置：获取默认路径（userData/projects/） */
+  getDefaultStoragePath(): Promise<string>
+  /** 存储位置：获取当前路径（含自定义路径） */
+  getCurrentStoragePath(): Promise<string>
 }
 
 export interface PaperSetItemDTO {
@@ -211,6 +242,18 @@ export interface CutLineDTO {
   page_id?: number
   col_index: number // 归属哪一列
   y_ratio: number // 0..1，横向切刀位置
+  created_seq?: number
+}
+
+export interface ManualBoxDTO {
+  id?: number
+  page_id?: number
+  paper_id?: number
+  x_start_ratio: number // 0..1
+  x_end_ratio: number // 0..1
+  y_start_ratio: number // 0..1
+  y_end_ratio: number // 0..1
+  is_excluded: number // 0=分割框, 1=排除框
   created_seq?: number
 }
 

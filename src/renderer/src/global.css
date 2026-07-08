@@ -1,0 +1,26 @@
+/* 全局基础样式。颜色一律用 Mantine 语义变量，不硬编码 hex。 */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--mantine-color-body);
+  color: var(--mantine-color-text);
+}
+
+/* 滚动条统一（可选美化） */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--mantine-color-gray-4);
+  border-radius: 6px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--mantine-color-gray-5);
+}

@@ -23,6 +23,12 @@ const api: Api = {
   addCutLine: (pageId, colIndex, yRatio) => ipcRenderer.invoke('cutlines:add', pageId, colIndex, yRatio),
   undoLastCutLine: (pageId) => ipcRenderer.invoke('cutlines:undo', pageId),
   deleteCutLine: (cutLineId) => ipcRenderer.invoke('cutlines:delete', cutLineId),
+  // manual boxes
+  listManualBoxes: (pageId) => ipcRenderer.invoke('manualboxes:list', pageId),
+  addManualBox: (pageId, paperId, x0, y0, x1, y1, isExcluded) =>
+    ipcRenderer.invoke('manualboxes:add', pageId, paperId, x0, y0, x1, y1, isExcluded),
+  deleteManualBox: (boxId) => ipcRenderer.invoke('manualboxes:delete', boxId),
+  undoLastManualBox: (pageId) => ipcRenderer.invoke('manualboxes:undo', pageId),
   // segments
   getSegmentsByPage: (pageId) => ipcRenderer.invoke('segments:byPage', pageId),
   getSegmentsByPaper: (paperId) => ipcRenderer.invoke('segments:byPaper', paperId),
@@ -85,7 +91,15 @@ const api: Api = {
   addToSet: (setId, questionId) => ipcRenderer.invoke('sets:add', setId, questionId),
   removeFromSet: (itemId) => ipcRenderer.invoke('sets:remove', itemId),
   updateSetItem: (itemId, fields) => ipcRenderer.invoke('sets:updateItem', itemId, fields),
-  exportBasketPdf: (setId, title) => ipcRenderer.invoke('export:basket', setId, title)
+  exportBasketPdf: (setId, title) => ipcRenderer.invoke('export:basket', setId, title),
+  backupDatabase: () => ipcRenderer.invoke('db:backup'),
+  getSetting: (key, defaultValue) => ipcRenderer.invoke('settings:get', key, defaultValue),
+  setSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),
+  // storage
+  openDirectoryDialog: () => ipcRenderer.invoke('dialog:openDirectory'),
+  migrateStorage: (newPath) => ipcRenderer.invoke('storage:migrate', newPath),
+  getDefaultStoragePath: () => ipcRenderer.invoke('storage:getDefaultPath'),
+  getCurrentStoragePath: () => ipcRenderer.invoke('storage:getCurrentPath')
 }
 
 if (process.contextIsolated) {

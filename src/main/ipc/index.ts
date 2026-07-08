@@ -1,5 +1,5 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
-import { basename } from 'path'
+import { ipcMain, dialog, BrowserWindow, app } from 'electron'
+import { basename, join } from 'path'
 import { getDb } from '../storage/StorageService'
 import * as paperRepo from '../storage/repositories/paperRepo'
 import * as pageRepo from '../storage/repositories/pageRepo'
@@ -57,9 +57,11 @@ export function registerIpc(): void {
     }
   })
 
-  ipcMain.handle('papers:delete', (_e, id: number) => {
+  ipcMain.handle('papers:delete', async (_e, id: number) => {
+    // 先删 DB 行（级联清理 pages/cut_lines/segments/questions 等），再删磁盘文件。
+    // 顺序：DB 是真值——磁盘删失败不影响一致性，仅留孤儿文件；DB 绝不能留悬空引用。
     paperRepo.deletePaper(getDb(), id)
-    // 注意：图片目录的清理由调用方/后续 FileService 负责（M2+ 再补）
+    await fileService.deletePaperDir(id)
     return
   })
 
@@ -112,6 +114,26 @@ export function registerIpc(): void {
 
   ipcMain.handle('cutlines:delete', (_e, cutLineId: number) => {
     pageRepo.deleteCutLine(getDb(), cutLineId)
+  })
+
+  // ---- manual boxes ----
+  ipcMain.handle('manualboxes:list', (_e, pageId: number) => {
+    return pageRepo.listManualBoxes(getDb(), pageId)
+  })
+
+  ipcMain.handle(
+    'manualboxes:add',
+    (_e, pageId: number, paperId: number, x0: number, y0: number, x1: number, y1: number, isExcluded: number) => {
+      return pageRepo.addManualBox(getDb(), pageId, paperId, x0, y0, x1, y1, isExcluded)
+    }
+  )
+
+  ipcMain.handle('manualboxes:delete', (_e, boxId: number) => {
+    pageRepo.deleteManualBox(getDb(), boxId)
+  })
+
+  ipcMain.handle('manualboxes:undo', (_e, pageId: number) => {
+    return pageRepo.undoLastManualBox(getDb(), pageId)
   })
 
   // ---- segments ----
@@ -293,5 +315,63 @@ export function registerIpc(): void {
   // ---- export ----
   ipcMain.handle('export:basket', async (_e, setId: number, title: string) => {
     return exportService.exportBasketPdf(setId, title)
+  })
+
+  // ---- db 维护（M12-2）----
+  /** 备份数据库：弹保存框 → better-sqlite3 的 backup()（安全处理 WAL，避免裸 copy 读到半写状态）。
+   *  返回保存路径，用户取消返回 null。 */
+  ipcMain.handle('db:backup', async (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const result = await dialog.showSaveDialog(win!, {
+      title: '备份数据库',
+      defaultPath: `题库备份-${new Date().toISOString().slice(0, 10)}.db`,
+      filters: [{ name: 'SQLite 数据库', extensions: ['db'] }]
+    })
+    if (result.canceled || !result.filePath) return null
+    const db = getDb()
+    // backup() 在另一个连接上逐页复制，不阻塞主连接读写，且保证一致性快照
+    await db.backup(result.filePath)
+    return result.filePath
+  })
+
+  // ---- app 设置（M12-2，R7：导出 DPI 可调）----
+  ipcMain.handle('settings:get', (_e, key: string, defaultValue: string) => {
+    const row = getDb().prepare('SELECT value FROM app_settings WHERE key = ?').get(key) as
+      | { value: string }
+      | undefined
+    return row?.value ?? defaultValue
+  })
+  ipcMain.handle('settings:set', (_e, key: string, value: string) => {
+    getDb()
+      .prepare('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+      .run(key, value)
+    return
+  })
+
+  // ---- 存储位置 ----
+  /** 弹出选择目录对话框，返回用户选的路径或 null（取消）。 */
+  ipcMain.handle('dialog:openDirectory', async (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const result = await dialog.showOpenDialog(win!, {
+      title: '选择数据存储位置',
+      properties: ['openDirectory']
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+
+  /** 迁移项目文件到新存储路径。 */
+  ipcMain.handle('storage:migrate', async (_e, newPath: string) => {
+    return fileService.migrateStorage(newPath)
+  })
+
+  /** 返回默认存储路径（userData/projects/），供前端恢复默认用。 */
+  ipcMain.handle('storage:getDefaultPath', () => {
+    return join(app.getPath('userData'), 'projects')
+  })
+
+  /** 返回当前存储路径（读 app_settings，空则返回默认路径）。 */
+  ipcMain.handle('storage:getCurrentPath', () => {
+    return fileService.getProjectsRoot()
   })
 }

@@ -1,5 +1,5 @@
 import type { DB } from '../StorageService'
-import type { ColumnDividerDTO, CutLineDTO, PageDTO } from '../../../shared/types'
+import type { ColumnDividerDTO, CutLineDTO, ManualBoxDTO, PageDTO } from '../../../shared/types'
 
 // ---- 列模式 ----
 
@@ -66,6 +66,55 @@ export function undoLastCutLine(db: DB, pageId: number): number | null {
 /** 删除指定横切线。 */
 export function deleteCutLine(db: DB, cutLineId: number): void {
   db.prepare(`DELETE FROM cut_lines WHERE id = ?`).run(cutLineId)
+}
+
+// ---- 手画框（manual_boxes）----
+
+export function listManualBoxes(db: DB, pageId: number): ManualBoxDTO[] {
+  return db
+    .prepare(`SELECT * FROM manual_boxes WHERE page_id = ? ORDER BY created_seq ASC`)
+    .all(pageId) as ManualBoxDTO[]
+}
+
+/** 添加一个手画框，返回新 id。created_seq 自动取该页当前最大+1。 */
+export function addManualBox(
+  db: DB,
+  pageId: number,
+  paperId: number,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  isExcluded: number
+): number {
+  const maxSeq = db
+    .prepare(`SELECT COALESCE(MAX(created_seq), 0) AS m FROM manual_boxes WHERE page_id = ?`)
+    .get(pageId) as { m: number }
+  const seq = maxSeq.m + 1
+  const r = db
+    .prepare(
+      `INSERT INTO manual_boxes (page_id, paper_id, x_start_ratio, x_end_ratio, y_start_ratio, y_end_ratio, is_excluded, created_seq)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(pageId, paperId, x0, x1, y0, y1, isExcluded, seq)
+  return Number(r.lastInsertRowid)
+}
+
+/** 删除指定手画框。 */
+export function deleteManualBox(db: DB, boxId: number): void {
+  db.prepare(`DELETE FROM manual_boxes WHERE id = ?`).run(boxId)
+}
+
+/** 撤销最近一个手画框（按 created_seq 最大）。返回被删的 id 或 null。 */
+export function undoLastManualBox(db: DB, pageId: number): number | null {
+  const last = db
+    .prepare(
+      `SELECT id FROM manual_boxes WHERE page_id = ? ORDER BY created_seq DESC LIMIT 1`
+    )
+    .get(pageId) as { id: number } | undefined
+  if (!last) return null
+  db.prepare(`DELETE FROM manual_boxes WHERE id = ?`).run(last.id)
+  return last.id
 }
 
 // ---- 页查询（复用 paperRepo 已有，这里只补按 id 取单页）----

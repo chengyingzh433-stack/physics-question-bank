@@ -6,3 +6,5 @@ release
 .DS_Store
 _bat.log
 _bat.err
+# tsc 增量构建缓存（tsconfig.web.json --noEmit 产生）
+*.tsbuildinfo

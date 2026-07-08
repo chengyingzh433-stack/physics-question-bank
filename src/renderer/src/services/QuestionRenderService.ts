@@ -13,6 +13,13 @@ export interface RenderedSegment {
   merge_order: number
 }
 
+export interface PageGeomExtended {
+  page_index: number
+  width_pt: number
+  height_pt: number
+  rotation?: number
+}
+
 /**
  * 渲染一个逻辑题的所有 segment 为高 DPI canvas 列表（按 merge_order 排序）。
  * mergeOrderMap: segmentId → merge_order（来自 question_segments）。
@@ -20,7 +27,7 @@ export interface RenderedSegment {
 export async function renderSegmentsAtDpi(
   doc: PdfDocument,
   segments: SegmentDTO[],
-  pagesMap: Map<number, PageGeom>,
+  pagesMap: Map<number, PageGeom | PageGeomExtended>,
   dpi: number,
   mergeOrderMap: Map<number, number>
 ): Promise<RenderedSegment[]> {
@@ -28,6 +35,7 @@ export async function renderSegmentsAtDpi(
   for (const s of segments) {
     const page = pagesMap.get(s.page_id!)
     if (!page) continue
+    const rotation = 'rotation' in page ? (page as PageGeomExtended).rotation ?? 0 : 0
     const { canvas, widthPx, heightPx } = await renderPageRegionAtDpi(
       doc,
       page.page_index,
@@ -37,7 +45,7 @@ export async function renderSegmentsAtDpi(
         y0: s.y_start_ratio,
         y1: s.y_end_ratio
       },
-      { rotation: 0, widthPt: page.width_pt, heightPt: page.height_pt, dpi }
+      { rotation, widthPt: page.width_pt, heightPt: page.height_pt, dpi }
     )
     out.push({
       canvas,

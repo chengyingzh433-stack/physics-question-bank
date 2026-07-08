@@ -25,6 +25,17 @@ CREATE TABLE IF NOT EXISTS cut_lines (
   page_id INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
   col_index INTEGER NOT NULL DEFAULT 0, y_ratio REAL NOT NULL, created_seq INTEGER);
 
+CREATE TABLE IF NOT EXISTS manual_boxes (
+  id INTEGER PRIMARY KEY,
+  page_id INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+  paper_id INTEGER NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+  x_start_ratio REAL NOT NULL,
+  x_end_ratio REAL NOT NULL,
+  y_start_ratio REAL NOT NULL,
+  y_end_ratio REAL NOT NULL,
+  is_excluded INTEGER NOT NULL DEFAULT 0,
+  created_seq INTEGER);
+
 CREATE TABLE IF NOT EXISTS segments (
   id INTEGER PRIMARY KEY,
   paper_id INTEGER NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
