@@ -30,6 +30,10 @@ function q(id: number, isMerged: number): QuestionDTO {
     image_path: null,
     width_px: null,
     height_px: null,
+    year_override: null,
+    source_override: null,
+    effective_year: null,
+    effective_source: null,
     created_at: null,
     updated_at: null
   }

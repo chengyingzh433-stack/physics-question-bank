@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   AppShell, Group, NavLink, Badge, ActionIcon, Text,
   useMantineColorScheme, Drawer, Select, Button, Stack, Divider,
-  LoadingOverlay, Alert
+  LoadingOverlay
 } from '@mantine/core'
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'

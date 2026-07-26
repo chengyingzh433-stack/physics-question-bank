@@ -97,19 +97,7 @@ describe('deriveAllSegments', () => {
   })
 
   it('5. 排除框不相交任何片段 → 推导片段不变', () => {
-    const excludeBox: ManualBoxDTO = {
-      x_start_ratio: 0.8, x_end_ratio: 0.95,
-      y_start_ratio: 0.8, y_end_ratio: 0.95,
-      is_excluded: 1
-    }
-    // 单栏 0 刀 = 1 整页段，排除框在角落不相交整页段……等等，整页段是 (0,1,0,1)，排除框在内部
-    // 改用双栏，排除框只与右列相交
-    const derived = deriveSegments(
-      { page_id: 1, paper_id: 1, column_mode: 2 },
-      [{ x_ratio: 0.5 }],
-      []
-    )
-    // 排除框在左列内，不相交右列
+    // 双栏：排除框只落在左列内，右列不受影响
     const excludeBoxLeft: ManualBoxDTO = {
       x_start_ratio: 0.1, x_end_ratio: 0.3,
       y_start_ratio: 0.1, y_end_ratio: 0.3,
@@ -171,7 +159,7 @@ describe('deriveAllSegments', () => {
     }
     const all = deriveAllSegments(PAGE, [], [], [row1Left, row1Right, row2Left, row2Right])
     // 4 个分割框，行优先排序
-    const orders = all.map((s) => s.order_index)
+    const orders = all.map((s) => s.order_index ?? 0)
     // row1 的两个 order_index < row2 的两个
     const row1Orders = orders.slice(0, 2)
     const row2Orders = orders.slice(2, 4)

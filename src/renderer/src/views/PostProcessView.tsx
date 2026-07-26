@@ -8,7 +8,6 @@ import {
   Button,
   Switch,
   Badge,
-  Paper,
   ActionIcon,
   Checkbox,
   Alert,
@@ -34,8 +33,8 @@ import {
   IconCheck,
   IconTemplate,
   IconArrowBackUp,
-  IconZoomQuestion,
-  IconEdit
+  IconEdit,
+  IconRefresh
 } from '@tabler/icons-react'
 import type { SegmentDTO, QuestionDTO, QuestionTypeDTO, TemplateRuleDTO } from '@shared/types'
 import { sourcePdfUrl } from '../services/ImportService'
@@ -93,6 +92,7 @@ function PostProcessView(): React.JSX.Element | null {
   const [rules, setRules] = useState<TemplateRuleDTO[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [paperStatus, setPaperStatus] = useState<string | null>(null)
   const [finalizeProgress, setFinalizeProgress] = useState<{ current: number; total: number } | null>(null)
 
   // 标签数据（章节/知识点/难度）
@@ -153,6 +153,8 @@ function PostProcessView(): React.JSX.Element | null {
   }, [])
 
   const reloadAll = useCallback(async () => {
+    const paper = await window.api.getPaper(pid)
+    setPaperStatus(paper?.status ?? null)
     const pgs = await window.api.getPages(pid)
     setPages(pgs.map((p) => ({
       id: p.id,
@@ -303,6 +305,38 @@ function PostProcessView(): React.JSX.Element | null {
     setQuestions((arr) => arr.map((q) => (q.id === qid ? { ...q, chapter_id: id } : q)))
   }, [ensureQuestionId, newChapterName])
 
+  /**
+   * 把当前模板预览的题型真正写进数据库。
+   * 侧栏"套用题型到题目"按钮调用。独立片段没有 question 行时先建行（ensureQuestionId）。
+   * 注意：ensureQuestionId 内部会 reloadAll，所以这里先把要写的 (preview, typeId) 快照下来，
+   * 逐个处理时用快照里的 preview 对象（它的 segments 不受 reload 影响）。
+   */
+  const handleApplyTemplateToQuestions = useCallback(async () => {
+    if (selectedTemplate == null || rules.length === 0) return
+    const snapshot = previewQuestions.map((pq) => ({
+      preview: pq,
+      typeId: templateTypeMap.get(pq.previewNumber) ?? null
+    }))
+    if (snapshot.length === 0) return
+    setBusy(true)
+    setError(null)
+    try {
+      let written = 0
+      for (const { preview, typeId } of snapshot) {
+        if (typeId == null) continue // 未命中规则的题不动
+        const qid = await ensureQuestionId(preview)
+        await window.api.setQuestionType(qid, typeId)
+        written++
+      }
+      await reloadAll()
+      notifications.show({ message: `已为 ${written} 道题写入题型`, color: 'green' })
+    } catch (e) {
+      setError('套用题型失败：' + String(e))
+    } finally {
+      setBusy(false)
+    }
+  }, [selectedTemplate, rules, previewQuestions, templateTypeMap, ensureQuestionId, reloadAll])
+
   const handleMerge = useCallback(async () => {
     const ordered = previewQuestions
       .filter((pq) => !pq.isMerged && pq.segments.some((s) => selected.has(s.id!)))
@@ -391,15 +425,21 @@ function PostProcessView(): React.JSX.Element | null {
 
   const handleFinalize = useCallback(async () => {
     if (!doc) return
+    const isRedo = paperStatus === 'done'
     modals.openConfirmModal({
-      title: '完成入库',
-      children: (
+      title: isRedo ? '重新生成题图' : '完成入库',
+      children: isRedo ? (
+        <Text size="sm">
+          此卷<strong>已经入库</strong>。重新生成会重新渲染所有题目的高清图、重排题号，
+          并覆盖已有题图。已赋的标签（章节/难度/知识点）不受影响。确认继续？
+        </Text>
+      ) : (
         <Text size="sm">
           将所有未删除片段正式入库为题目，生成高清 PNG 图片。此操作不可撤销，确认继续？
         </Text>
       ),
-      labels: { confirm: '确认入库', cancel: '取消' },
-      confirmProps: { color: 'sky' },
+      labels: { confirm: isRedo ? '确认重新生成' : '确认入库', cancel: '取消' },
+      confirmProps: { color: isRedo ? 'orange' : 'sky' },
       onConfirm: async () => {
         setBusy(true)
         setError(null)
@@ -459,6 +499,21 @@ function PostProcessView(): React.JSX.Element | null {
             await window.api.setQuestionOrder(qOrders[i].qid, i + 1)
           }
 
+          // 若选了模板，用【最终题号】重算题型并写库。
+          // 这里必须用 i+1（入库后的 order_in_paper），不能用预览期的 previewNumber——
+          // 两者在有已删除片段/合并组时可能不一致。
+          if (selectedTemplate != null && rules.length > 0) {
+            const results = applyTemplate(
+              qOrders.map((qo, i) => ({ id: qo.qid, order_in_paper: i + 1 })),
+              rules
+            )
+            for (const r of results) {
+              if (r.typeId != null) {
+                await window.api.setQuestionType(r.questionId, r.typeId)
+              }
+            }
+          }
+
           const dpiStr = await window.api.getSetting('export_dpi', '300')
           const renderDpi = parseInt(dpiStr, 10) || 300
           setFinalizeProgress({ current: 0, total: qOrders.length })
@@ -480,16 +535,20 @@ function PostProcessView(): React.JSX.Element | null {
           await reloadAll()
           setFinalizeProgress(null)
           clearUndoStack()
-          notifications.show({ title: '入库完成', message: `${qOrders.length} 道题已入库`, color: 'green' })
+          notifications.show({
+            title: isRedo ? '重新生成完成' : '入库完成',
+            message: `${qOrders.length} 道题${isRedo ? '已重新生成题图' : '已入库'}`,
+            color: 'green'
+          })
         } catch (e) {
-          setError('入库失败：' + String(e))
+          setError((isRedo ? '重新生成失败：' : '入库失败：') + String(e))
           setFinalizeProgress(null)
         } finally {
           setBusy(false)
         }
       }
     })
-  }, [doc, pid, reloadAll, clearUndoStack])
+  }, [doc, pid, reloadAll, clearUndoStack, paperStatus, selectedTemplate, rules])
 
   // UX2-3: 缩放档位变更时持久化
   const handleThumbSizeChange = useCallback((label: string) => {
@@ -529,14 +588,19 @@ function PostProcessView(): React.JSX.Element | null {
         </Button>
         <Button
           size="sm"
-          color="sky"
-          leftSection={<IconCheck size={14} />}
+          color={paperStatus === 'done' ? 'orange' : 'sky'}
+          leftSection={paperStatus === 'done' ? <IconRefresh size={14} /> : <IconCheck size={14} />}
           onClick={handleFinalize}
           disabled={busy}
           fullWidth
         >
-          完成入库
+          {paperStatus === 'done' ? '重新生成题图' : '完成入库'}
         </Button>
+        {paperStatus === 'done' && (
+          <Text size="xs" c="dimmed" ta="center">
+            此卷已入库
+          </Text>
+        )}
         {/* UX2-2: 撤销按钮 */}
         <Tooltip label={undoStack.length > 0 ? '撤销上一步 (Ctrl+Z)' : '无可撤销操作'}>
           <Button
@@ -598,6 +662,19 @@ function PostProcessView(): React.JSX.Element | null {
             <IconEdit size={14} />
           </ActionIcon>
         </Group>
+        {/* 模板 Select 只是预览标注，要真正写进库必须点这个按钮（或直接入库时自动写） */}
+        <Tooltip label={selectedTemplate == null ? '先选一个模板' : '把预览的题型真正写入数据库'}>
+          <Button
+            size="sm"
+            variant="light"
+            color="teal"
+            onClick={handleApplyTemplateToQuestions}
+            disabled={busy || selectedTemplate == null || rules.length === 0}
+            fullWidth
+          >
+            套用题型到题目
+          </Button>
+        </Tooltip>
         <Switch
           label="显示已删除"
           size="sm"

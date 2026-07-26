@@ -10,6 +10,10 @@ export interface PaperDTO {
   original_filename: string | null
   page_count: number
   status: PaperStatus
+  /** 试卷默认年份（M13）。题目未覆盖时继承此值。 */
+  year: number | null
+  /** 试卷默认出处（M13），如"新课标 I 卷"。题目未覆盖时继承此值。 */
+  source: string | null
   created_at: string | null
   updated_at: string | null
 }
@@ -39,6 +43,11 @@ export interface Api {
   getPaper(id: number): Promise<PaperDTO | null>
   importPaper(name: string): Promise<PaperDTO | null>
   deletePaper(id: number): Promise<void>
+  /** 更新试卷默认年份/出处（M13）。 */
+  updatePaperMeta(
+    paperId: number,
+    fields: { year?: number | null; source?: string | null }
+  ): Promise<void>
   // pages
   bulkAddPages(pages: NewPageDTO[]): Promise<void>
   setPageCount(paperId: number, n: number): Promise<void>
@@ -88,6 +97,11 @@ export interface Api {
   deleteQuestion(questionId: number): Promise<void>
   renumberQuestions(paperId: number): Promise<void>
   setQuestionOrder(questionId: number, orderInPaper: number): Promise<void>
+  /** 更新单题年份/出处覆盖（M13）。null/空串 = 清除覆盖回退继承。 */
+  updateQuestionSourceOverride(
+    questionId: number,
+    fields: { year_override?: number | null; source_override?: string | null }
+  ): Promise<void>
   setQuestionImage(
     questionId: number,
     imagePath: string,
@@ -135,6 +149,8 @@ export interface Api {
   getQuestionKnowledgePoints(questionId: number): Promise<number[]>
   // bank
   listBankQuestions(criteria: QuestionFilterCriteria): Promise<BankQuestionDTO[]>
+  /** 题库筛选可选的年份/出处清单（M13，distinct 按 effective 口径）。 */
+  listYearSources(): Promise<{ years: number[]; sources: string[] }>
   // basket (paper_set draft)
   getOrCreateDraftSet(): Promise<number>
   listSetItems(setId: number): Promise<PaperSetItemDTO[]>
@@ -183,6 +199,10 @@ export interface QuestionFilterCriteria {
   chapter_id?: number | null
   difficulty_id?: number | null
   kp_ids?: number[]
+  /** 年份筛选（M13），走 COALESCE(单题覆盖, 试卷默认) 口径。 */
+  year?: number | null
+  /** 出处筛选（M13），走 COALESCE(单题覆盖, 试卷默认) 口径。 */
+  source?: string | null
 }
 
 export interface BankQuestionDTO {
@@ -196,6 +216,10 @@ export interface BankQuestionDTO {
   image_path: string | null
   width_px: number | null
   height_px: number | null
+  year_override: number | null
+  source_override: string | null
+  effective_year: number | null
+  effective_source: string | null
   paper_name: string
 }
 
@@ -281,6 +305,14 @@ export interface QuestionDTO {
   image_path: string | null
   width_px: number | null
   height_px: number | null
+  /** 单题年份覆盖（M13）。null = 继承试卷 year。 */
+  year_override: number | null
+  /** 单题出处覆盖（M13）。null = 继承试卷 source。 */
+  source_override: string | null
+  /** SQL 层 COALESCE(year_override, papers.year) 的结果，前端只显示不计算。 */
+  effective_year: number | null
+  /** SQL 层 COALESCE(source_override, papers.source) 的结果，前端只显示不计算。 */
+  effective_source: string | null
   created_at: string | null
   updated_at: string | null
 }

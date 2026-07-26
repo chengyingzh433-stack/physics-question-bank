@@ -56,6 +56,23 @@ export function initDatabase(): void {
   if (!cols.some((c) => c.name === 'rotation')) {
     db.exec('ALTER TABLE pages ADD COLUMN rotation INTEGER NOT NULL DEFAULT 0')
   }
+
+  // 幂等迁移：年份/出处（M13）。papers 存默认值，questions 存单题覆盖，
+  // 读取口径统一 COALESCE(q.*_override, p.*)。空（NULL）表示继承，不用 0/空串。
+  const paperCols = db.prepare("PRAGMA table_info(papers)").all() as { name: string }[]
+  if (!paperCols.some((c) => c.name === 'year')) {
+    db.exec('ALTER TABLE papers ADD COLUMN year INTEGER')
+  }
+  if (!paperCols.some((c) => c.name === 'source')) {
+    db.exec('ALTER TABLE papers ADD COLUMN source TEXT')
+  }
+  const questionCols = db.prepare("PRAGMA table_info(questions)").all() as { name: string }[]
+  if (!questionCols.some((c) => c.name === 'year_override')) {
+    db.exec('ALTER TABLE questions ADD COLUMN year_override INTEGER')
+  }
+  if (!questionCols.some((c) => c.name === 'source_override')) {
+    db.exec('ALTER TABLE questions ADD COLUMN source_override TEXT')
+  }
 }
 
 /** 仅测试/关闭时使用。 */

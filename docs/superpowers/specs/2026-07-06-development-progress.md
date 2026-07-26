@@ -1,6 +1,6 @@
 # 开发进度记录
 
-- 日期：2026-07-08（更新，…+ **裁切框选完成 + 第三轮 UX 实现完成**）
+- 日期：2026-07-26（更新，…+ **M13 年份/出处完成**）
 - 关联文档：…`-crop-box-select-issues.md`（框选需求）、`-crop-box-select-solution.md`（框选技术方案）、`-postprocess-ux-issues-3.md`（第三轮需求：软删除/标签/模板/答案）、`-postprocess-ux-solution-3.md`（第三轮技术方案）
 - 本文档记录截至当前的开发状态，对照技术设计文档逐节说明实现情况，并列出剩余工作。
 
@@ -8,7 +8,7 @@
 
 ## 1. 总体状态
 
-主线链路 **M0→M1→M2→M3→M4**（导入→裁切→后期处理→入库出图）代码全部完成，M5–M10 的功能代码也已完成。**前端 UI 已用 Mantine 7 重构完成**（2026-07-07）。**M11 打包已修复**（2026-07-07，`npmRebuild: false` + npmmirror 镜像 + winCodeSign 手动解压）。**加固项 T3–T8 全部完成**（2026-07-07）。**裁切/后期/复查白屏 bug 已修复**（2026-07-07，命令式 innerHTML 与 React 子节点解耦）。**后期处理 UX 第一轮重构已完成**（2026-07-07，UX-1/2/3：片段网格→题目纵向列表+拼合大图+题号题型标注）。**缩略图渲染竞态 + 跨页排序 bug 已修复**（2026-07-07，详见 5.4）。**后期处理第二轮 UX 重构已完成**（2026-07-07，UX2-1 侧栏布局 + UX2-2 Ctrl+Z 撤销 + UX2-3 缩略图缩放，详见 5.6）。**自定义存储位置已完成**（2026-07-07，设置 Drawer 可改存储路径+自动迁移，详见 5.7）。**裁切框选已完成**（2026-07-08，新增 `manual_boxes` 表 + `deriveAllSegments` 合并函数 + CropOverlay 框选交互 + CropView 工具栏 4 档，详见 5.7）。**第三轮 UX 已完成**（2026-07-08，软删除原地显示+标签现场创建+模板现场编辑，详见 5.8）。**自测通过**（typecheck、build、52 个单测）。
+主线链路 **M0→M1→M2→M3→M4**（导入→裁切→后期处理→入库出图）代码全部完成，M5–M10 的功能代码也已完成。**前端 UI 已用 Mantine 7 重构完成**（2026-07-07）。**M11 打包已修复**（2026-07-07，`npmRebuild: false` + npmmirror 镜像 + winCodeSign 手动解压）。**加固项 T3–T8 全部完成**（2026-07-07）。**裁切/后期/复查白屏 bug 已修复**（2026-07-07，命令式 innerHTML 与 React 子节点解耦）。**后期处理 UX 第一轮重构已完成**（2026-07-07，UX-1/2/3：片段网格→题目纵向列表+拼合大图+题号题型标注）。**缩略图渲染竞态 + 跨页排序 bug 已修复**（2026-07-07，详见 5.4）。**后期处理第二轮 UX 重构已完成**（2026-07-07，UX2-1 侧栏布局 + UX2-2 Ctrl+Z 撤销 + UX2-3 缩略图缩放，详见 5.6）。**自定义存储位置已完成**（2026-07-07，设置 Drawer 可改存储路径+自动迁移，详见 5.7）。**裁切框选已完成**（2026-07-08，新增 `manual_boxes` 表 + `deriveAllSegments` 合并函数 + CropOverlay 框选交互 + CropView 工具栏 4 档，详见 5.7）。**第三轮 UX 已完成**（2026-07-08，软删除原地显示+标签现场创建+模板现场编辑，详见 5.8）。**第四轮 UX 已完成**（2026-07-09，独立片段标签赋值修复+复查页入库门禁+图片占位兜底，详见 5.9）。**M13 年份/出处已完成**（2026-07-26，试卷默认+单题覆盖，SQL 层 COALESCE 统一口径，详见 5.10）。**自测通过**（typecheck **零错误**、build 通过、**58 个单测全绿**）。
 
 **已验证可用**的硬链路：
 - Electron 31 + better-sqlite3（Electron ABI 125）原生模块加载 + SQL 读写
@@ -42,7 +42,7 @@
 | 状态管理 | **未引入 Zustand**，用 React state + hooks | ⚠️ 偏离设计，当前规模够用，重构时可引入 |
 | **UI 组件库** | **Mantine 7.17.8 + @tabler/icons-react** | ✅ 前端重构完成（2026-07-07），见第 10 节 |
 | 构建 | electron-vite 2.3 | ✅ |
-| 单测 | Vitest 2.0 | ✅ 52 个（原28 + PostProcessService 14 + deriveAllSegments 10） |
+| 单测 | Vitest 2.0 | ✅ 58 个（原28 + PostProcessService 14 + deriveAllSegments 10 + questionFilter 年份出处 6） |
 
 ### 第 3.1 节 四个坑
 1. 导出 DPI：✅ EXPORT_DPI=300 集中定义（shared/constants.ts），屏幕低 DPI/入库高 DPI 两条路径分开
@@ -262,7 +262,7 @@ UX 第一轮重构 + 渲染/排序 bug 修复后，缩略图可见、顺序正�
 
 **问题 4：答案导入**：本轮不实现，方向建议记录在方案文档第 4 节。
 
-**⚠️ 人测发现的遗留缺陷（2026-07-08，第四轮需求已记录）**：第三轮标签赋值用 `preview.questionId != null` 门控（PostProcessView 第 828 行），导致**只有合并过的题目能赋标签，大量未合并的独立片段无法赋标签**。原卷复查页（PaperReviewView）用 `listQuestionsByPaper` 取入库后题目，未合并片段在入库前不出现、且反馈"不显示原图"。详见 `2026-07-08-postprocess-ux-issues-4.md`（第四轮需求），待高级工程师出方案。
+**⚠️ 人测发现的遗留缺陷（2026-07-08，第四轮需求已记录）→ ✅ 已修复（2026-07-09）**：第三轮标签赋值用 `preview.questionId != null` 门控（PostProcessView 第 828 行），导致**只有合并过的题目能赋标签，大量未合并的独立片段无法赋标签**。原卷复查页（PaperReviewView）用 `listQuestionsByPaper` 取入库后题目，未合并片段在入库前不出现、且反馈"不显示原图"。修复方案见 `2026-07-08-postprocess-ux-solution-4.md`，实现详见 5.9。
 
 ---
 
@@ -282,10 +282,132 @@ UX 第一轮重构 + 渲染/排序 bug 修复后，缩略图可见、顺序正�
 - **模板现场编辑**：✅ 已完成。抽 `TemplateRulesEditor` 共享组件（从 TemplateView 规则编辑段抽出），PaperReviewView 和 PostProcessView 各加"编辑模板"按钮→Drawer 复用组件。编辑只影响预览标注不改已入库题目。详见 5.8。
 - **答案导入**：本轮不实现，方向建议记录在方案文档第 4 节。
 
-### P1（第四轮需求，2026-07-08）→ ⏳ 待高级工程师出方案
-- **独立片段可赋标签**：后期处理页标签赋值不应只限合并题目，所有片段（含未合并独立片段）都应能设章节/知识点/题型/难度。现状 `preview.questionId != null` 门控卡死。
-- **复查页显示修复**：原卷复查页所有入库题目都应显示（按题号排序）、显示原图、完整标签信息；`image_path` 为空时给占位而非隐藏。
-- 详见 `2026-07-08-postprocess-ux-issues-4.md`。
+### 5.9 第四轮 UX 修复（2026-07-09）→ ✅ 已完成
+
+用户人测发现第三轮的标签赋值功能只对合并过的题目生效，独立片段（占大多数）无法赋标签；复查页对未入库试卷显示不全。需求定义见 `2026-07-08-postprocess-ux-issues-4.md`，技术方案见 `2026-07-08-postprocess-ux-solution-4.md`。
+
+**问题 1：独立片段无法赋标签**
+- **根因**：`QuestionCard` 里 `isStandalone = preview.questionId === null` 把"能否合并/删除"和"能否赋标签"耦合，且标签区用 `{preview.questionId != null && (...)}` 门控。独立片段 questionId 为 null（无 question 行），所有标签 IPC 需 questionId → 写不进去。
+- **决策**：lazy promote-on-tag——首次赋标签时 `createQuestionWithSegments(pid, segIds, null)` 为该片段建单段 question 行（`is_merged=0`），拿回 qid 再写标签。
+- **改动**：
+  - `PostProcessView.tsx`：
+    - `isStandalone` 改为 `!preview.isMerged`（语义拆分：合并/删除 vs 标签解耦）
+    - 标签区门控去掉，对所有 question 项渲染；questionId 为 null 时取值用可选链容错
+    - 新增 `ensureQuestionId(preview)`：questionId 非空直接返回，为 null 则建单段行 + reloadAll
+    - 5 个标签 handler 签名从 `(qid, ...)` 改为 `(preview, ...)`，内部先 ensure 再走原 IPC
+    - `newKpNames` key 从 questionId 改为 `preview.key`（独立片段 ensure 前 questionId 为 null 但 key 稳定）
+    - `selectedStandaloneCount` / `handleMerge` 过滤 `pq.questionId === null` 改 `!pq.isMerged`（升格后仍可被勾选合并）
+    - `handleMerge` 收集选中项里 questionId != null 的旧单段 qid，建合并行后 `deleteQuestion` 清理（防 `question_segments` 双挂——最大坑）
+    - `handleFinalize` 构建 qOrders 时取 segs 后过滤 `!is_deleted`，全删则 `deleteQuestion` 清理并跳过（空题守卫，不改 liveSegs.filter 那行红线）
+  - `PaperReviewView.tsx`：`is_merged` 判断改 `=== 1`（DTO 是 number）
+  - `TemplateView.tsx`：补缺的 `Group` 导入（上一轮抽组件遗留的硬错误）
+- **红线确认**：derivePreviewItems/derivePreviewQuestions 纯函数不动、handleFinalize 的 segment 过滤不动、A12 先库后 state、不新增 IPC、合并组标签不继承（已知取舍）。
+
+**问题 2：复查页显示不全/无图**
+- **根因**：复查页数据源 `listQuestionsByPaper` 只返回入库后 question 行。用户未点"完成入库"就进复查页 → 只有合并组有行、无图。
+- **决策**：明确复查页为"入库后最终复查"，加 status 门禁 + 图片占位兜底。
+- **改动**：
+  - `PaperReviewView.tsx`：
+    - `reloadAll` 加 `getPaper(pid)` 取 status
+    - `status !== 'done'` 显示"请先完成入库"Alert + 回跳 `/post/{pid}` 按钮，不渲染网格
+    - 题图区改为始终渲染：有 `image_path` 显示 `<img>`，无则灰底"无题图"占位
+    - 新增 `Alert`/`Container`/`Box`/`IconArrowLeft` 导入
+- **红线确认**：不去 derive 未入库预览、图片 URL 格式不变。
+
+### 5.10 M13 年份/出处（2026-07-26）→ ✅ 已完成（待人测）
+
+需求见 `2026-07-26-roadmap-m13-m17.md` 阶段 1，技术手册见 `2026-07-26-m13-year-source-solution.md`。用户决策：**试卷默认 + 单题覆盖**。
+
+**数据模型**
+- `papers` 加 `year INTEGER` / `source TEXT`（试卷默认值）
+- `questions` 加 `year_override INTEGER` / `source_override TEXT`（单题覆盖）
+- `StorageService.initDatabase` 加 4 处幂等迁移（`PRAGMA table_info` 检查后 `ALTER TABLE`），老库直接升级
+- **NULL = 继承**，不用 0 或空串表示（手册红线 5）。repo 写入层把空串归一为 NULL
+
+**读取口径（核心）**
+- `questionRepo` 抽出 `QUESTION_COLUMNS` 常量，COALESCE **只写这一次**：
+  `COALESCE(q.year_override, p.year) AS effective_year`（source 同理）
+- `listQuestionsByPaper` 从 `SELECT *` 改显式列 + `JOIN papers`；`listBankQuestions` 共用同一常量
+- DTO 同时暴露 `effective_*`（显示用）和 `*_override`（区分继承/覆盖用）
+- 前端**只显示不计算**，杜绝继承逻辑散落多处不一致
+
+**筛选**
+- `QuestionFilterCriteria` 加 `year?` / `source?`，条件走同一 COALESCE 口径
+- `buildQuestionQuery` 现在始终 `JOIN papers p`（COALESCE 需要 `p` 别名）
+- 现有 7 个单测**一字未动**，新增 6 个（年份命中/出处命中/null 不加条件/空串不加条件/组合参数顺序/JOIN 存在性）→ 单测 52 → 58
+
+**新增 IPC（3 个，按手册申报制）**
+- `papers:updateMeta` — 更新试卷默认年份/出处
+- `questions:updateSourceOverride` — 更新单题覆盖
+- `bank:listYearSources` — 筛选选项 distinct（按 effective 口径）
+
+**UI**
+- `HomeView`：试卷卡片加 `PaperMetaPopover`（年份 NumberInput + 出处 TextInput），卡片显示紫/蓝 Badge
+- `BankView`：筛选栏加年份/出处 Select（可搜索）+ 已选条件 Badge 可清除；题卡显示年份出处，**继承值 outline 灰色 + tooltip"继承自试卷"，覆盖值 light 彩色 + tooltip"本题单独设置"**
+- `PaperReviewView`：每题加 `QuestionOverrideFields`——留空即继承（placeholder 显示"继承 2023"），填写即覆盖，**失焦提交**（非每字符写库）
+
+**顺带清理（本轮附带，非 M13 范围）**
+- `TemplateView.tsx` 补缺失的 `Group` 导入（上一轮抽组件遗留的硬错误，之前 tsc 报 10 行）
+- `deriveAllSegments.test.ts` 修 2 处 TS2345（`order_index` 可能 undefined）+ 删未用变量
+- `LibraryLayout` 删未用 `Alert`、`TemplateRulesEditor` 删未用 `Stack`/`TextInput`、`PostProcessView` 删未用 `Paper`/`IconZoomQuestion`
+- 结果：**typecheck 从"10+ 遗留错误"变为零错误**
+
+**自测**：typecheck 零错误（node + web）、build 三段通过、58 单测全绿。**人测待用户执行**（见下方待测清单）。
+
+**M13 待人测清单**
+1. 主页试卷卡点标签图标 → 填年份 2023 + 出处"新课标 I 卷" → 保存 → 卡片显示两个 Badge，重启仍在
+2. 题库页筛选栏出现"年份"和"出处"下拉，选 2023 能筛出该卷的题
+3. 题库题卡年份出处显示为灰色 outline（继承），悬停提示"继承自试卷"
+4. 复查页每题底部有年份/出处输入框，placeholder 显示"继承 2023"
+5. 复查页给某题填年份 2024 → 失焦保存 → 回题库看该题变紫色实心 Badge，提示"本题单独设置"
+6. 清空那题年份输入框 → 失焦 → 回退成继承的 2023（灰色 outline）
+7. 按年份 2024 筛选，只出现被覆盖的那一题（验证覆盖优先）
+
+**人测结果（2026-07-26）：✅ 全部通过。**
+
+### 5.11 人测发现的修复（2026-07-26）→ ✅ 已完成
+
+M13 人测期间发现 5 个问题，全部修复：
+
+**问题 1：PDF 显示错位、只显示左半、缩放无效（老 bug，非 M13 引入）**
+- **根因**：`RenderService.renderPage` 里 `scale` 已含 dpr（`widthCss * dpr / widthPt`），画布尺寸也按此开，却又调了 `ctx.scale(dpr, dpr)` → 内容被放大 **dpr² 倍**，画布只装得下左上角的 1/dpr。
+- **暴露条件**：仅在 `devicePixelRatio > 1`（显示器缩放 125%/150%）的机器上出现；dpr=1 时两种算法等价，所以从 M2 至今一直没暴露。
+- **修复**：删掉 `ctx.scale(opts.dpr, opts.dpr)`，加注释钉死原因。`renderPageRegion`/`renderPageRegionAtDpi` 本来就没这个问题。
+- **连带修复**：Ctrl+滚轮光标锚点缩放（T4）也恢复正常——之前锚点补偿依赖 `scrollWidth`，内容溢出时该值失真。
+
+**问题 2：模板套用后按题型筛选无结果**
+- **根因**：后期处理页的模板 Select **只是预览标注，从不写库**（只算 `templateTypeMap` 用于卡片 Badge），`questions.type_id` 始终为 null。复查页的"套用模板"按钮才真写库，但用户在后期页操作够不着。
+- **修复（双保险）**：
+  1. 后期页侧栏新增 **"套用题型到题目"** 按钮（青色）→ `handleApplyTemplateToQuestions`：对每题先 `ensureQuestionId`（独立片段建行），再 `setQuestionType`。未命中规则的题不动。
+  2. `handleFinalize` 里排完题号后，若选了模板则用**最终 `order_in_paper`（i+1）** 重算 `applyTemplate` 并写库。
+- **关键坑**：入库时必须用最终题号重算，**不能复用预览期的 `previewNumber`**——有已删除片段或合并组时两者会错位。
+
+**问题 3：已入库试卷可重复点"完成入库"**
+- **修复**：`reloadAll` 取 `paper.status` 存 `paperStatus` state。`status==='done'` 时按钮变橙色**"重新生成题图"**（`IconRefresh`）+ 下方小字"此卷已入库"，确认弹窗改警告文案（重渲染+重排题号+覆盖已有图，标签不受影响）。
+- **决策**：保留重新生成能力而非直接禁用——用户可能回头重裁了片段，完全禁用就没法重新出图。
+
+**问题 4：题库看不清完整题目**
+- **决策**：网格 + 点击放大 Modal（而非改纵列列表）。理由：网格一屏扫 20+ 题，筛选后快速勾选的效率是列表给不了的；看不清时点开即可。
+- **实现**：`BankView` 题图加 `cursor: zoom-in` + 点击打开 90% 宽 Modal，内含完整题图 + 题型/年份/出处/章节/难度/知识点全套 Badge + "加入组卷篮"按钮。知识点在打开 Modal 时才查（`openZoom`），不在列表期做 N+1。
+
+**问题 5：组卷篮为空时"去题库浏览"按钮无反应**
+- **根因**：`BasketView` 的 `EmptyState` 的 `onAction` 是空函数占位（注释写着"由侧栏导航处理"，但从未接线）。
+- **修复**：接入 `useNavigate()` → `navigate('/bank')`。
+
+**自测**：typecheck 零错误、build 通过、58 单测全绿。
+
+### P1（第四轮需求，2026-07-08）→ ✅ 已完成
+- **独立片段可赋标签**：✅ 已完成。lazy promote-on-tag 建单段行 + isStandalone 语义拆分 + 合并清理旧单段行防双挂 + 入库空题守卫。详见 5.9。
+- **复查页显示修复**：✅ 已完成。入库门禁（status!=='done'拦截）+ 图片占位兜底。详见 5.9。
+
+### M13–M17 路线图（2026-07-26 起）
+总路线图见 `2026-07-26-roadmap-m13-m17.md`。五个阶段，一阶段一轮循环：
+
+- **M13 年份/出处** → ✅ **已完成并人测通过**（2026-07-26）。详见 5.10、5.11。
+- **M14 答案导入+裁切+匹配** → ⏳ **技术手册已出**（`2026-07-26-m14-answer-solution.md`），待开工。核心决策：复用 `papers` 表（加 `kind`+`parent_paper_id`），答案 PDF 当成挂在题目试卷下的特殊试卷，裁切界面与五张几何表零改动复用；答案图落到 `questions.answer_image_path`，答案跟题走。
+- **M15 全链路验收走查** → ⏳ 待开工。用同一道题走完 框选→入库→绑答案→选题篮→导出训练资料，并完成拖欠的 T2。
+- **M16 PPT 导出** → ⏳ 待开工。pptxgenjs 每题一页可编辑。
+- **M17 架构审视** → ⏳ 待开工。PostProcessView 拆分、标签区抽共享组件、N+1 查询批量化、ViewportController 抽出等。
 
 ### P1（UX，第二轮人测发现）→ ✅ 全部完成
 - **UX2-1 后期处理侧栏布局**：✅ 已完成。Flex 双栏，右侧栏固定，IntersectionObserver root 适配，窄屏退化。

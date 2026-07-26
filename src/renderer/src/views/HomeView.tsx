@@ -8,11 +8,16 @@ import {
   Button,
   ActionIcon,
   Tooltip,
-  LoadingOverlay
+  LoadingOverlay,
+  Badge,
+  Popover,
+  Stack,
+  NumberInput,
+  TextInput
 } from '@mantine/core'
 import { modals } from '@mantine/modals'
 import { notifications } from '@mantine/notifications'
-import { IconUpload, IconTrash, IconArrowRight } from '@tabler/icons-react'
+import { IconUpload, IconTrash, IconArrowRight, IconTag } from '@tabler/icons-react'
 import type { PaperDTO } from '@shared/types'
 import { importPagesFromPdf } from '../services/ImportService'
 import { StatusBadge } from '../components/StatusBadge'
@@ -107,6 +112,18 @@ function HomeView(): React.JSX.Element {
     [refresh]
   )
 
+  const handleSaveMeta = useCallback(
+    async (paperId: number, year: number | null, source: string | null) => {
+      // A12：先写库，再更新 state
+      await window.api.updatePaperMeta(paperId, { year, source })
+      setPapers((arr) =>
+        arr.map((p) => (p.id === paperId ? { ...p, year, source: source?.trim() || null } : p))
+      )
+      notifications.show({ message: '年份/出处已保存', color: 'green' })
+    },
+    []
+  )
+
   if (papers.length === 0 && !busy) {
     return (
       <EmptyState
@@ -153,6 +170,16 @@ function HomeView(): React.JSX.Element {
             <Text size="sm" c="dimmed">
               {p.page_count} 页
             </Text>
+            {(p.year != null || p.source) && (
+              <Group gap={4} mt={4}>
+                {p.year != null && (
+                  <Badge size="xs" variant="light" color="grape">{p.year}</Badge>
+                )}
+                {p.source && (
+                  <Badge size="xs" variant="light" color="blue">{p.source}</Badge>
+                )}
+              </Group>
+            )}
             <Text size="xs" c="dimmed">
               {p.created_at ? new Date(p.created_at).toLocaleString() : ''}
             </Text>
@@ -169,6 +196,7 @@ function HomeView(): React.JSX.Element {
                   <IconArrowRight size={16} />
                 </ActionIcon>
               </Tooltip>
+              <PaperMetaPopover paper={p} onSave={handleSaveMeta} />
               <Tooltip label="删除">
                 <ActionIcon
                   variant="subtle"
@@ -186,6 +214,78 @@ function HomeView(): React.JSX.Element {
         ))}
       </SimpleGrid>
     </div>
+  )
+}
+
+// 试卷年份/出处编辑（M13）。这里是"默认值"，题目未单独覆盖时继承它。
+function PaperMetaPopover(props: {
+  paper: PaperDTO
+  onSave: (paperId: number, year: number | null, source: string | null) => Promise<void>
+}): React.JSX.Element {
+  const { paper, onSave } = props
+  const [opened, setOpened] = useState(false)
+  const [year, setYear] = useState<number | string>(paper.year ?? '')
+  const [source, setSource] = useState(paper.source ?? '')
+
+  const handleSave = async (): Promise<void> => {
+    const y = typeof year === 'number' ? year : year.trim() === '' ? null : Number(year)
+    await onSave(paper.id, Number.isNaN(y as number) ? null : y, source)
+    setOpened(false)
+  }
+
+  return (
+    <Popover
+      width={260}
+      position="bottom"
+      withArrow
+      shadow="md"
+      opened={opened}
+      onChange={setOpened}
+    >
+      <Popover.Target>
+        <Tooltip label="编辑年份/出处">
+          <ActionIcon
+            variant="subtle"
+            color="grape"
+            onClick={(e) => {
+              e.stopPropagation()
+              setYear(paper.year ?? '')
+              setSource(paper.source ?? '')
+              setOpened((o) => !o)
+            }}
+          >
+            <IconTag size={16} />
+          </ActionIcon>
+        </Tooltip>
+      </Popover.Target>
+      <Popover.Dropdown onClick={(e) => e.stopPropagation()}>
+        <Stack gap="xs">
+          <NumberInput
+            label="年份"
+            placeholder="如 2023"
+            value={year}
+            onChange={setYear}
+            size="xs"
+            min={1900}
+            max={2200}
+            hideControls
+          />
+          <TextInput
+            label="出处"
+            placeholder="如 新课标 I 卷"
+            value={source}
+            onChange={(e) => setSource(e.currentTarget.value)}
+            size="xs"
+          />
+          <Text size="xs" c="dimmed">
+            这是本卷所有题的默认值，单题可在复查页单独覆盖。
+          </Text>
+          <Button size="xs" onClick={handleSave}>
+            保存
+          </Button>
+        </Stack>
+      </Popover.Dropdown>
+    </Popover>
   )
 }
 

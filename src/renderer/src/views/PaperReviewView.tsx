@@ -116,6 +116,17 @@ function PaperReviewView(): React.JSX.Element | null {
     setQuestions((arr) => arr.map((q) => (q.id === qid ? { ...q, difficulty_id: did } : q)))
   }, [])
 
+  // M13：单题年份/出处覆盖。空值 = 清除覆盖回退继承试卷默认值。
+  // 写库后重取该题的 effective 值（继承计算在 SQL 层，前端不自己算）。
+  const handleSetOverride = useCallback(
+    async (qid: number, fields: { year_override?: number | null; source_override?: string | null }) => {
+      await window.api.updateQuestionSourceOverride(qid, fields)
+      const fresh = await window.api.listQuestionsByPaper(pid)
+      setQuestions(fresh)
+    },
+    [pid]
+  )
+
   const handleCreateKp = useCallback(async (qid: number) => {
     const name = newKpNames[qid]?.trim()
     if (!name) return
@@ -310,6 +321,9 @@ function PaperReviewView(): React.JSX.Element | null {
                       </Button>
                     </Group>
                   </div>
+
+                  {/* M13：年份/出处。留空 = 继承试卷默认值，填写 = 本题单独覆盖 */}
+                  <QuestionOverrideFields question={q} onSave={handleSetOverride} />
                 </Stack>
               </Card>
             )
@@ -339,6 +353,68 @@ function PaperReviewView(): React.JSX.Element | null {
       </>
       )}
     </div>
+  )
+}
+
+/**
+ * 单题年份/出处覆盖输入（M13）。
+ * 输入框留空 = 继承试卷默认值（placeholder 显示继承来的值）；填写 = 本题单独覆盖。
+ * 失焦时提交，避免每敲一个字符就写库。
+ */
+function QuestionOverrideFields(props: {
+  question: QuestionDTO
+  onSave: (
+    qid: number,
+    fields: { year_override?: number | null; source_override?: string | null }
+  ) => Promise<void>
+}): React.JSX.Element {
+  const { question: q, onSave } = props
+  const [year, setYear] = useState<string>(q.year_override != null ? String(q.year_override) : '')
+  const [source, setSource] = useState<string>(q.source_override ?? '')
+
+  // 外部刷新（如改了试卷默认值后 reload）时同步回显
+  useEffect(() => {
+    setYear(q.year_override != null ? String(q.year_override) : '')
+    setSource(q.source_override ?? '')
+  }, [q.year_override, q.source_override])
+
+  // 继承值作为 placeholder：让用户看到"不填会是什么"
+  const inheritedYear = q.year_override == null && q.effective_year != null ? String(q.effective_year) : ''
+  const inheritedSource = !q.source_override && q.effective_source ? q.effective_source : ''
+
+  const commitYear = (): void => {
+    const trimmed = year.trim()
+    const next = trimmed === '' ? null : Number(trimmed)
+    if (next != null && Number.isNaN(next)) return
+    if (next === (q.year_override ?? null)) return
+    onSave(q.id, { year_override: next })
+  }
+
+  const commitSource = (): void => {
+    const next = source.trim() === '' ? null : source.trim()
+    if (next === (q.source_override ?? null)) return
+    onSave(q.id, { source_override: next })
+  }
+
+  return (
+    <Group gap="xs" grow>
+      <TextInput
+        label="年份"
+        placeholder={inheritedYear ? `继承 ${inheritedYear}` : '未设'}
+        value={year}
+        onChange={(e) => setYear(e.currentTarget.value)}
+        onBlur={commitYear}
+        size="xs"
+      />
+      <TextInput
+        label="出处"
+        placeholder={inheritedSource ? `继承 ${inheritedSource}` : '未设'}
+        value={source}
+        onChange={(e) => setSource(e.currentTarget.value)}
+        onBlur={commitSource}
+        size="xs"
+      />
+    </Group>
   )
 }
 

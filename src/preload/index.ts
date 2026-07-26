@@ -8,6 +8,7 @@ const api: Api = {
   getPaper: (id) => ipcRenderer.invoke('papers:get', id),
   importPaper: (name) => ipcRenderer.invoke('papers:import', name),
   deletePaper: (id) => ipcRenderer.invoke('papers:delete', id),
+  updatePaperMeta: (paperId, fields) => ipcRenderer.invoke('papers:updateMeta', paperId, fields),
   // pages
   bulkAddPages: (pages) => ipcRenderer.invoke('pages:bulkAdd', pages),
   setPageCount: (paperId, n) => ipcRenderer.invoke('pages:setCount', paperId, n),
@@ -46,6 +47,8 @@ const api: Api = {
   renumberQuestions: (paperId) => ipcRenderer.invoke('questions:renumber', paperId),
   setQuestionOrder: (questionId, orderInPaper) =>
     ipcRenderer.invoke('questions:setOrder', questionId, orderInPaper),
+  updateQuestionSourceOverride: (questionId, fields) =>
+    ipcRenderer.invoke('questions:updateSourceOverride', questionId, fields),
   setQuestionImage: (questionId, imagePath, widthPx, heightPx) =>
     ipcRenderer.invoke('questions:setImage', questionId, imagePath, widthPx, heightPx),
   setPaperStatus: (paperId, status) =>
@@ -84,6 +87,7 @@ const api: Api = {
   getQuestionKnowledgePoints: (qid) => ipcRenderer.invoke('questions:getKps', qid),
   // bank
   listBankQuestions: (criteria) => ipcRenderer.invoke('bank:list', criteria),
+  listYearSources: () => ipcRenderer.invoke('bank:listYearSources'),
   // basket
   getOrCreateDraftSet: () => ipcRenderer.invoke('sets:getDraft'),
   listSetItems: (setId) => ipcRenderer.invoke('sets:listItems', setId),

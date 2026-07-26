@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Text,
   Group,
@@ -18,6 +19,7 @@ import { EmptyState } from '../components/EmptyState'
 import { IconClipboardList } from '@tabler/icons-react'
 
 function BasketView(): React.JSX.Element {
+  const navigate = useNavigate()
   const [, setSetId] = useState<number | null>(null)
   const [items, setItems] = useState<PaperSetItemDTO[]>([])
   const [qMap, setQMap] = useState<Record<number, BankQuestionDTO>>({})
@@ -85,7 +87,7 @@ function BasketView(): React.JSX.Element {
         title="组卷篮为空"
         description="去题库浏览页勾选题目加入篮"
         actionLabel="去题库浏览"
-        onAction={() => { /* 由侧栏导航处理 */ }}
+        onAction={() => navigate('/bank')}
       />
     )
   }

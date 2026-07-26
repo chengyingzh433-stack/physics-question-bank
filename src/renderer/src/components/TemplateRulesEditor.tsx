@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Stack,
   Text,
-  TextInput,
   Button,
   ActionIcon,
   Table,

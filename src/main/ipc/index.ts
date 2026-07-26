@@ -65,6 +65,14 @@ export function registerIpc(): void {
     return
   })
 
+  // M13：试卷默认年份/出处。题目未覆盖时继承这里的值。
+  ipcMain.handle(
+    'papers:updateMeta',
+    (_e, paperId: number, fields: { year?: number | null; source?: string | null }) => {
+      paperRepo.updatePaperMeta(getDb(), paperId, fields)
+    }
+  )
+
   // ---- pages ----
   ipcMain.handle('pages:bulkAdd', (_e, pages: NewPageDTO[]) => {
     paperRepo.addPages(getDb(), pages)
@@ -188,6 +196,18 @@ export function registerIpc(): void {
     questionRepo.setQuestionOrder(getDb(), questionId, orderInPaper)
   })
 
+  // M13：单题年份/出处覆盖。null/空串 = 清除覆盖回退继承试卷默认值。
+  ipcMain.handle(
+    'questions:updateSourceOverride',
+    (
+      _e,
+      questionId: number,
+      fields: { year_override?: number | null; source_override?: string | null }
+    ) => {
+      questionRepo.updateQuestionSourceOverride(getDb(), questionId, fields)
+    }
+  )
+
   ipcMain.handle(
     'questions:setImage',
     (_e, questionId: number, imagePath: string, widthPx: number, heightPx: number) => {
@@ -279,6 +299,9 @@ export function registerIpc(): void {
   // ---- bank ----
   ipcMain.handle('bank:list', (_e, criteria: QuestionFilterCriteria) => {
     return questionRepo.listBankQuestions(getDb(), criteria)
+  })
+  ipcMain.handle('bank:listYearSources', () => {
+    return questionRepo.listYearSources(getDb())
   })
 
   // ---- basket (paper_set draft) ----

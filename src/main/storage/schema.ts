@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS schema_meta (version INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS papers (
   id INTEGER PRIMARY KEY, name TEXT NOT NULL,
   source_pdf_path TEXT, original_filename TEXT, page_count INTEGER DEFAULT 0,
-  status TEXT DEFAULT 'importing', created_at TEXT, updated_at TEXT);
+  status TEXT DEFAULT 'importing', year INTEGER, source TEXT,
+  created_at TEXT, updated_at TEXT);
 
 CREATE TABLE IF NOT EXISTS pages (
   id INTEGER PRIMARY KEY,
@@ -62,6 +63,7 @@ CREATE TABLE IF NOT EXISTS questions (
   chapter_id INTEGER REFERENCES chapters(id) ON DELETE SET NULL,
   difficulty_id INTEGER REFERENCES difficulties(id) ON DELETE SET NULL,
   is_merged INTEGER DEFAULT 0, image_path TEXT, width_px INTEGER, height_px INTEGER,
+  year_override INTEGER, source_override TEXT,
   created_at TEXT, updated_at TEXT);
 
 CREATE TABLE IF NOT EXISTS question_segments (

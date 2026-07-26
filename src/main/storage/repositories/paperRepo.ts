@@ -54,3 +54,29 @@ export function getPages(db: DB, paperId: number): PageDTO[] {
 export function deletePaper(db: DB, id: number): void {
   db.prepare(`DELETE FROM papers WHERE id = ?`).run(id)
 }
+
+/**
+ * 更新试卷的默认年份/出处（M13）。
+ * null / 空串表示清空，题目届时 COALESCE 后也为 null。
+ */
+export function updatePaperMeta(
+  db: DB,
+  paperId: number,
+  fields: { year?: number | null; source?: string | null }
+): void {
+  const sets: string[] = []
+  const params: (string | number | null)[] = []
+  if ('year' in fields) {
+    sets.push('year = ?')
+    params.push(fields.year ?? null)
+  }
+  if ('source' in fields) {
+    sets.push('source = ?')
+    const v = fields.source
+    params.push(v == null || v.trim() === '' ? null : v.trim())
+  }
+  if (sets.length === 0) return
+  sets.push('updated_at = ?')
+  params.push(now(), paperId)
+  db.prepare(`UPDATE papers SET ${sets.join(', ')} WHERE id = ?`).run(...params)
+}

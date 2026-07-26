@@ -77,8 +77,10 @@ export async function renderPage(
   canvas.height = Math.floor(viewport.height)
   canvas.style.width = `${opts.widthCss}px`
   canvas.style.height = `${opts.heightCss}px`
+  // 注意：scale 里已经乘过 dpr（viewport 直接把 pt 映射到 widthCss*dpr 物理像素），
+  // 这里绝不能再 ctx.scale(dpr, dpr)——否则内容被放大 dpr² 倍，画布只装得下左上角
+  // 的 1/dpr，表现为「页面只显示左边一部分且缩放无效」。dpr=1 的机器看不出来。
   const ctx = canvas.getContext('2d')!
-  ctx.scale(opts.dpr, opts.dpr)
 
   const renderTask = page.render({ canvasContext: ctx, viewport })
   const done = renderTask.promise.then(() => {

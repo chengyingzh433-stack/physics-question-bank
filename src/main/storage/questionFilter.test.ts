@@ -64,3 +64,44 @@ describe('buildQuestionQuery', () => {
     expect(params).toEqual([10, 20, 30, 40])
   })
 })
+
+// M13：年份/出处筛选。口径是 COALESCE(单题覆盖, 试卷默认)，单题覆盖优先。
+describe('buildQuestionFilter — 年份/出处（M13）', () => {
+  it('年份命中走 COALESCE 口径', () => {
+    const r = buildQuestionFilter({ year: 2023 })
+    expect(r.where).toContain('COALESCE(q.year_override, p.year) = ?')
+    expect(r.params).toEqual([2023])
+  })
+
+  it('出处命中走 COALESCE 口径', () => {
+    const r = buildQuestionFilter({ source: '新课标 I 卷' })
+    expect(r.where).toContain('COALESCE(q.source_override, p.source) = ?')
+    expect(r.params).toEqual(['新课标 I 卷'])
+  })
+
+  it('年份/出处为 null 时不加条件', () => {
+    const r = buildQuestionFilter({ year: null, source: null })
+    expect(r.where).toBe('q.image_path IS NOT NULL')
+    expect(r.params).toEqual([])
+  })
+
+  it('出处为空串时不加条件（空串不是有效筛选值）', () => {
+    const r = buildQuestionFilter({ source: '' })
+    expect(r.where).toBe('q.image_path IS NOT NULL')
+    expect(r.params).toEqual([])
+  })
+
+  it('年份+出处+题型组合，params 按加入顺序', () => {
+    const r = buildQuestionFilter({ type_id: 1, year: 2024, source: '全国甲卷' })
+    expect(r.where).toContain('q.type_id = ?')
+    expect(r.where).toContain('COALESCE(q.year_override, p.year) = ?')
+    expect(r.where).toContain('COALESCE(q.source_override, p.source) = ?')
+    expect(r.params).toEqual([1, 2024, '全国甲卷'])
+  })
+
+  it('buildQuestionQuery 始终 JOIN papers（COALESCE 需要 p 别名）', () => {
+    const { sql } = buildQuestionQuery({ year: 2023 })
+    expect(sql).toContain('JOIN papers p ON p.id = q.paper_id')
+    expect(sql).toContain('COALESCE(q.year_override, p.year) = ?')
+  })
+})
