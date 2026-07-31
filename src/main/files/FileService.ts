@@ -141,6 +141,45 @@ export async function saveQuestionPng(
 }
 
 /**
+ * 把答案图 PNG 字节写到 projects/{paperId}/images/a_{questionId}.png（M14）。
+ *
+ * 注意 paperId 传的是【题目卷】id，不是答案卷——答案图跟着题目走，
+ * 存在题目卷目录下，删题目卷时 deletePaperDir 一并清掉，不留孤儿文件。
+ */
+export async function saveAnswerPng(
+  paperId: number,
+  questionId: number,
+  data: ArrayBuffer
+): Promise<{ relPath: string; url: string }> {
+  await ensurePaperDir(paperId)
+  const filename = `a_${questionId}.png`
+  const abs = join(imagesDir(paperId), filename)
+  await writeFile(abs, Buffer.from(data))
+  const relPath = `projects/${paperId}/images/${filename}`
+  return { relPath, url: `app://projects/${paperId}/images/${filename}` }
+}
+
+/**
+ * 删除某题目卷下所有答案图 PNG（images/a_*.png）（M14）。
+ * 只删 a_ 前缀的文件，题图 q_*.png 绝不能碰。
+ * 目录不存在或个别文件删不掉都视为成功——DB 才是真值，磁盘残留只是浪费空间。
+ */
+export async function deleteAnswerPngs(paperId: number): Promise<void> {
+  if (!Number.isInteger(paperId) || paperId <= 0) return
+  const dir = imagesDir(paperId)
+  let names: string[]
+  try {
+    names = await readdir(dir)
+  } catch {
+    return // 目录不存在，没什么可删
+  }
+  for (const name of names) {
+    if (!name.startsWith('a_') || !name.endsWith('.png')) continue
+    await rm(join(dir, name), { force: true }).catch(() => {})
+  }
+}
+
+/**
  * 迁移项目文件到新存储路径。
  * 流程：mkdir 新路径 → 逐项复制旧数据 → 写设置 → 删旧数据。
  * 任一步骤失败则抛出错误，旧数据保留、设置不更新。

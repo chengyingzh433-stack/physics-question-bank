@@ -73,6 +73,29 @@ export function initDatabase(): void {
   if (!questionCols.some((c) => c.name === 'source_override')) {
     db.exec('ALTER TABLE questions ADD COLUMN source_override TEXT')
   }
+
+  // 幂等迁移：答案卷 + 答案绑定（M14）。
+  // 答案 PDF 复用 papers 表：kind='answer' 且 parent_paper_id 指向题目卷，
+  // 这样 pages/dividers/cut_lines/manual_boxes/segments 五张几何表零改动复用。
+  // 答案图落在题目行上（answer_image_path），删题目卷时级联清理，答案跟题走。
+  // 注意：SQLite 的 ALTER TABLE ADD COLUMN 不支持带 REFERENCES 的外键约束，
+  // 老库迁移出来的 parent_paper_id 没有 FK 约束（新库走 SCHEMA_V1 才有）。
+  // 级联删除由 papers:delete 的应用层逻辑兜底（先删子答案卷再删自己）。
+  if (!paperCols.some((c) => c.name === 'kind')) {
+    db.exec("ALTER TABLE papers ADD COLUMN kind TEXT NOT NULL DEFAULT 'paper'")
+  }
+  if (!paperCols.some((c) => c.name === 'parent_paper_id')) {
+    db.exec('ALTER TABLE papers ADD COLUMN parent_paper_id INTEGER')
+  }
+  if (!questionCols.some((c) => c.name === 'answer_image_path')) {
+    db.exec('ALTER TABLE questions ADD COLUMN answer_image_path TEXT')
+  }
+  if (!questionCols.some((c) => c.name === 'answer_width_px')) {
+    db.exec('ALTER TABLE questions ADD COLUMN answer_width_px INTEGER')
+  }
+  if (!questionCols.some((c) => c.name === 'answer_height_px')) {
+    db.exec('ALTER TABLE questions ADD COLUMN answer_height_px INTEGER')
+  }
 }
 
 /** 仅测试/关闭时使用。 */

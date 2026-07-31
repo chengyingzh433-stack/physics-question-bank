@@ -3,6 +3,9 @@
 /** 试卷状态机：导入中→裁切中→后期处理中→已入库 */
 export type PaperStatus = 'importing' | 'cropping' | 'processing' | 'done'
 
+/** 试卷种类（M14）：题目卷 或 挂在题目卷下的答案卷。 */
+export type PaperKind = 'paper' | 'answer'
+
 export interface PaperDTO {
   id: number
   name: string
@@ -14,6 +17,10 @@ export interface PaperDTO {
   year: number | null
   /** 试卷默认出处（M13），如"新课标 I 卷"。题目未覆盖时继承此值。 */
   source: string | null
+  /** 'paper'=题目卷，'answer'=答案卷（M14）。 */
+  kind: PaperKind
+  /** 答案卷指向的题目卷 id；题目卷为 null（M14）。 */
+  parent_paper_id: number | null
   created_at: string | null
   updated_at: string | null
 }
@@ -41,7 +48,13 @@ export interface Api {
   // papers
   listPapers(): Promise<PaperDTO[]>
   getPaper(id: number): Promise<PaperDTO | null>
-  importPaper(name: string): Promise<PaperDTO | null>
+  /** 导入试卷。M14: options.kind='answer' + parentPaperId 时建答案卷。 */
+  importPaper(
+    name: string,
+    options?: { kind?: PaperKind; parentPaperId?: number | null }
+  ): Promise<PaperDTO | null>
+  /** 取某题目卷的答案卷（M14）。无则 null。 */
+  getAnswerPaper(parentPaperId: number): Promise<PaperDTO | null>
   deletePaper(id: number): Promise<void>
   /** 更新试卷默认年份/出处（M13）。 */
   updatePaperMeta(
@@ -117,6 +130,21 @@ export interface Api {
     questionId: number,
     data: ArrayBuffer
   ): Promise<{ relPath: string; url: string }>
+  /** 保存答案图 PNG（M14）。paperId 传题目卷 id，答案图存在题目卷目录下。 */
+  saveAnswerPng(
+    paperId: number,
+    questionId: number,
+    data: ArrayBuffer
+  ): Promise<{ relPath: string; url: string }>
+  /** 绑定/解绑答案图到题目（M14）。imagePath=null 时解绑。 */
+  setAnswerImage(
+    questionId: number,
+    imagePath: string | null,
+    widthPx: number | null,
+    heightPx: number | null
+  ): Promise<void>
+  /** 清空某题目卷下所有题的答案图绑定 + 删掉磁盘上的答案 PNG（M14）。返回清掉的题数。 */
+  clearAnswersByPaper(paperId: number): Promise<number>
   // question types
   listQuestionTypes(): Promise<{ id: number; name: string; is_builtin: number }[]>
   createQuestionType(name: string): Promise<number>
@@ -165,7 +193,8 @@ export interface Api {
       display_number?: string | null
     }
   ): Promise<void>
-  exportBasketPdf(setId: number, title: string): Promise<string | null>
+  /** M14: answerMode 控制答案包含方式（'none'=不含/默认，'append'=末尾参考答案区，'inline'=每题后紧跟）。 */
+  exportBasketPdf(setId: number, title: string, answerMode?: 'none' | 'append' | 'inline'): Promise<string | null>
 
   /** 备份数据库到用户选定路径（M12-2）。返回保存路径，取消返回 null。 */
   backupDatabase(): Promise<string | null>
@@ -220,6 +249,9 @@ export interface BankQuestionDTO {
   source_override: string | null
   effective_year: number | null
   effective_source: string | null
+  answer_image_path: string | null
+  answer_width_px: number | null
+  answer_height_px: number | null
   paper_name: string
 }
 
@@ -313,6 +345,10 @@ export interface QuestionDTO {
   effective_year: number | null
   /** SQL 层 COALESCE(source_override, papers.source) 的结果，前端只显示不计算。 */
   effective_source: string | null
+  /** 绑定的答案图相对路径（M14），null = 未绑定答案。 */
+  answer_image_path: string | null
+  answer_width_px: number | null
+  answer_height_px: number | null
   created_at: string | null
   updated_at: string | null
 }

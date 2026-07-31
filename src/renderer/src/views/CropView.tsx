@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import {
   Group,
   SegmentedControl,
   ActionIcon,
   Tooltip,
-  Text
+  Text,
+  Button,
+  Badge
 } from '@mantine/core'
-import { IconArrowLeft, IconArrowBackUp, IconSquare } from '@tabler/icons-react'
+import { IconArrowLeft, IconArrowBackUp, IconSquare, IconArrowRight } from '@tabler/icons-react'
 import { sourcePdfUrl } from '../services/ImportService'
 import { useCropData } from '../services/useCropData'
 import PDFViewer, { type ZoomMode } from './PDFViewer'
@@ -49,6 +51,13 @@ function CropView(): React.JSX.Element | null {
     return <Text p="md" c="red">未找到试卷 (id={pid})</Text>
   }
 
+  // M14.5：两种卷裁完都去后期处理（删无关片段 / 合并跨页）。
+  // 答案卷的后期处理页跑答案模式，完成后才跳答案匹配页——
+  // 所以这里对答案卷用【答案卷自己的 id】，不是 parent_paper_id。
+  const isAnswer = crop.paper.kind === 'answer'
+  const nextPath = `/post/${pid}`
+  const nextLabel = isAnswer ? '去整理答案' : '去后期处理'
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* 工具栏 */}
@@ -66,6 +75,7 @@ function CropView(): React.JSX.Element | null {
             </ActionIcon>
           </Tooltip>
           <Text fw={600} size="sm">{crop.paper.name}</Text>
+          {isAnswer && <Badge size="sm" variant="light" color="violet">答案卷</Badge>}
           <Text size="xs" c="dimmed">{crop.pages.length} 页</Text>
         </Group>
 
@@ -115,8 +125,16 @@ function CropView(): React.JSX.Element | null {
           </Tooltip>
         </Group>
 
-        {/* 右: 缩放控件由 PDFViewer 内置 */}
-        <div />
+        {/* 右: 缩放控件由 PDFViewer 内置；下一步按 kind 分流 */}
+        <Button
+          size="xs"
+          variant="light"
+          rightSection={<IconArrowRight size={14} />}
+          component={Link}
+          to={nextPath}
+        >
+          {nextLabel}
+        </Button>
       </Group>
 
       {/* 查看器 + 覆盖层（Ctrl+滚轮锚点缩放由 PDFViewer 内部处理，T4）*/}

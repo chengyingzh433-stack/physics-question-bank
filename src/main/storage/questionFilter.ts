@@ -21,11 +21,12 @@ export interface BuiltFilter {
 /**
  * 构造题库筛选 SQL 的 WHERE 子句（不含前置 WHERE 关键字）。
  * 筛选知识点时 JOIN question_knowledge_points，命中任一 kp_id。
- * 仅返回 image_path 非空（已入库）的题。
+ * 仅返回 image_path 非空（已入库）且来自题目卷（p.kind='paper'）的题。
  * 年份/出处走 effective 口径（M13）：单题覆盖优先于试卷默认，调用方须 JOIN papers p。
  */
 export function buildQuestionFilter(c: QuestionFilterCriteria): BuiltFilter {
-  const conditions: string[] = ['q.image_path IS NOT NULL']
+  // p.kind = 'paper' 确保答案卷的 question 行不进题库（M14.5 B2）
+  const conditions: string[] = ['q.image_path IS NOT NULL', "p.kind = 'paper'"]
   const params: (string | number)[] = []
 
   if (c.type_id != null) {

@@ -31,17 +31,19 @@ async function findCjkFont(): Promise<Buffer> {
  * - 顶部试卷标题（内嵌中文字体）。
  * - 每题：连续编号 1..N（R7，不因分组重置）+ 可选 group_header + 题图（按内容宽度等比缩放；高于一页内容区则等比缩小到一页内，R4）。
  * - 自动分页。
+ * - M14: answerMode 控制答案包含方式（'none'=不含/默认，'append'=末尾参考答案区，'inline'=每题后紧跟）。
  * 返回保存的文件路径；用户取消返回 null。
  */
 export async function exportBasketPdf(
   setId: number,
-  title: string
+  title: string,
+  answerMode: 'none' | 'append' | 'inline' = 'none'
 ): Promise<string | null> {
   const db = getDb()
   const items = setRepo.listSetItems(db, setId)
   if (items.length === 0) throw new Error('组卷篮为空，无法导出。')
 
-  // 读各题 PNG 字节
+  // 读各题 PNG 字节（含答案图，M14）
   type Item = {
     questionId: number
     order: number
@@ -49,20 +51,29 @@ export async function exportBasketPdf(
     pngBytes: Buffer | null
     widthPx: number
     heightPx: number
+    answerPngBytes: Buffer | null
   }
   const richItems: Item[] = []
   for (const it of items) {
     const question = db
-      .prepare(`SELECT image_path, width_px, height_px, paper_id FROM questions WHERE id = ?`)
+      .prepare(`SELECT image_path, width_px, height_px, paper_id, answer_image_path FROM questions WHERE id = ?`)
       .get(it.question_id) as
-      | { image_path: string | null; width_px: number | null; height_px: number | null; paper_id: number }
+      | { image_path: string | null; width_px: number | null; height_px: number | null; paper_id: number; answer_image_path: string | null }
       | undefined
     let pngBytes: Buffer | null = null
+    let answerPngBytes: Buffer | null = null
     if (question?.image_path) {
       const parts = question.image_path.split('/')
       const filename = parts[parts.length - 1]
       const abs = join(imagesDir(question.paper_id), filename)
       if (existsSync(abs)) pngBytes = await readFile(abs)
+    }
+    // 读答案图（M14）
+    if (answerMode !== 'none' && question?.answer_image_path) {
+      const parts = question.answer_image_path.split('/')
+      const filename = parts[parts.length - 1]
+      const abs = join(imagesDir(question.paper_id), filename)
+      if (existsSync(abs)) answerPngBytes = await readFile(abs)
     }
     richItems.push({
       questionId: it.question_id,
@@ -70,7 +81,8 @@ export async function exportBasketPdf(
       groupHeader: it.group_header,
       pngBytes,
       widthPx: question?.width_px ?? 0,
-      heightPx: question?.height_px ?? 0
+      heightPx: question?.height_px ?? 0,
+      answerPngBytes
     })
   }
 
@@ -171,6 +183,32 @@ export async function exportBasketPdf(
       })
       y -= drawH + 12
     }
+
+    // 答案图紧跟（inline 模式，M14）
+    if (answerMode === 'inline' && it.answerPngBytes) {
+      await drawAnswerImg(doc, it.answerPngBytes, num, cjkFont, labelSize, contentW, contentH, margin, () => page, (newPage) => { page = newPage }, () => y, (newY) => { y = newY })
+    }
+  }
+
+  // 末尾"参考答案"区（append 模式，M14）
+  if (answerMode === 'append') {
+    const hasAny = richItems.some((it) => it.answerPngBytes != null)
+    if (hasAny) {
+      page = doc.addPage([A4_WIDTH_PT, A4_HEIGHT_PT])
+      y = A4_HEIGHT_PT - margin
+      const secSize = 16
+      page.drawText('参考答案', {
+        x: margin, y: y - secSize, size: secSize, font: cjkFont, color: rgb(0.2, 0.2, 0.6)
+      })
+      y -= secSize + 12
+
+      for (let idx = 0; idx < richItems.length; idx++) {
+        const it = richItems[idx]
+        if (!it.answerPngBytes) continue
+        const num = idx + 1
+        await drawAnswerImg(doc, it.answerPngBytes, num, cjkFont, labelSize, contentW, contentH, margin, () => page, (newPage) => { page = newPage }, () => y, (newY) => { y = newY })
+      }
+    }
   }
 
   const bytes = await doc.save()
@@ -188,3 +226,54 @@ export async function exportBasketPdf(
 }
 
 void EXPORT_DPI // R7 集中定义（导出图已按 300DPI 生成，此处仅引用常量）
+
+/**
+ * 在 PDF 中绘制一张答案图（编号 + 图），内部辅助函数（M14）。
+ * 因 pdf-lib 无法在闭包里修改原始 page/y 变量，通过 getter/setter 传入。
+ */
+async function drawAnswerImg(
+  doc: PDFDocument,
+  pngBytes: Buffer,
+  num: number,
+  cjkFont: Awaited<ReturnType<PDFDocument['embedFont']>>,
+  labelSize: number,
+  contentW: number,
+  contentH: number,
+  margin: number,
+  getPage: () => Awaited<ReturnType<PDFDocument['addPage']>>,
+  setPage: (p: Awaited<ReturnType<PDFDocument['addPage']>>) => void,
+  getY: () => number,
+  setY: (y: number) => void
+): Promise<void> {
+  let y = getY()
+  let page = getPage()
+
+  const label = `${num}.`
+  if (y - labelSize < margin) {
+    page = doc.addPage([A4_WIDTH_PT, A4_HEIGHT_PT])
+    y = A4_HEIGHT_PT - margin
+    setPage(page)
+  }
+  page.drawText(label, { x: margin, y: y - labelSize, size: labelSize, font: cjkFont, color: rgb(0.1, 0.1, 0.1) })
+  y -= labelSize + 4
+
+  let img: PDFImage
+  try {
+    img = await doc.embedPng(pngBytes)
+  } catch {
+    setY(y)
+    return
+  }
+  let drawW = contentW
+  let drawH = (img.height / img.width) * drawW
+  const maxH = contentH - 20
+  if (drawH > maxH) { const s = maxH / drawH; drawH *= s; drawW *= s }
+  if (y - drawH < margin) {
+    page = doc.addPage([A4_WIDTH_PT, A4_HEIGHT_PT])
+    y = A4_HEIGHT_PT - margin
+    setPage(page)
+  }
+  page.drawImage(img, { x: margin, y: y - drawH, width: drawW, height: drawH })
+  y -= drawH + 12
+  setY(y)
+}

@@ -18,6 +18,9 @@ export interface QuestionRow {
   source_override: string | null
   effective_year: number | null
   effective_source: string | null
+  answer_image_path: string | null
+  answer_width_px: number | null
+  answer_height_px: number | null
   created_at: string | null
   updated_at: string | null
 }
@@ -33,6 +36,7 @@ const QUESTION_COLUMNS = `q.id, q.paper_id, q.order_in_paper, q.type_id, q.chapt
   q.year_override, q.source_override,
   COALESCE(q.year_override, p.year) AS effective_year,
   COALESCE(q.source_override, p.source) AS effective_source,
+  q.answer_image_path, q.answer_width_px, q.answer_height_px,
   q.created_at, q.updated_at`
 
 /** 取某试卷所有题目（按 order_in_paper）。 */
@@ -62,7 +66,8 @@ export function listYearSources(db: DB): { years: number[]; sources: string[] } 
     .prepare(
       `SELECT DISTINCT COALESCE(q.year_override, p.year) AS y FROM questions q
        JOIN papers p ON p.id = q.paper_id
-       WHERE q.image_path IS NOT NULL AND COALESCE(q.year_override, p.year) IS NOT NULL
+       WHERE q.image_path IS NOT NULL AND p.kind = 'paper'
+         AND COALESCE(q.year_override, p.year) IS NOT NULL
        ORDER BY y DESC`
     )
     .all() as { y: number }[]
@@ -70,7 +75,7 @@ export function listYearSources(db: DB): { years: number[]; sources: string[] } 
     .prepare(
       `SELECT DISTINCT COALESCE(q.source_override, p.source) AS s FROM questions q
        JOIN papers p ON p.id = q.paper_id
-       WHERE q.image_path IS NOT NULL
+       WHERE q.image_path IS NOT NULL AND p.kind = 'paper'
          AND COALESCE(q.source_override, p.source) IS NOT NULL
          AND COALESCE(q.source_override, p.source) <> ''
        ORDER BY s ASC`
@@ -84,7 +89,9 @@ function buildQuestionFilterWithJoin(c: QuestionFilterCriteria): {
   where: string
   params: (string | number)[]
 } {
-  const conditions: string[] = ['q.image_path IS NOT NULL']
+  // p.kind = 'paper' 确保答案卷的 question 行不进题库（M14.5 B2）。
+  // 答案卷的 question 行本来就没有 image_path，但那是巧合防护，不能依赖。
+  const conditions: string[] = ['q.image_path IS NOT NULL', "p.kind = 'paper'"]
   const params: (string | number)[] = []
   if (c.type_id != null) {
     conditions.push('q.type_id = ?')
@@ -224,6 +231,37 @@ export function setQuestionOrder(db: DB, questionId: number, orderInPaper: numbe
     new Date().toISOString(),
     questionId
   )
+}
+
+/**
+ * 绑定答案图到题目（M14）。imagePath 为 null 时解绑。
+ */
+export function setQuestionAnswer(
+  db: DB,
+  questionId: number,
+  imagePath: string | null,
+  widthPx: number | null,
+  heightPx: number | null
+): void {
+  db.prepare(
+    `UPDATE questions SET answer_image_path = ?, answer_width_px = ?, answer_height_px = ?, updated_at = ? WHERE id = ?`
+  ).run(imagePath, widthPx, heightPx, new Date().toISOString(), questionId)
+}
+
+/**
+ * 批量清空某题目卷下所有题的答案图绑定（M14）。
+ * 用于「重新导入答案」/「清除全部绑定」，避免 DB 里留孤儿引用。
+ * 只筛 answer_image_path IS NOT NULL，返回值才等于真正被清掉的题数（供 UI 提示）。
+ * 磁盘上的 a_*.png 不在这里删——由调用方（IPC handler）清理。
+ */
+export function clearAnswersByPaper(db: DB, paperId: number): number {
+  const info = db
+    .prepare(
+      `UPDATE questions SET answer_image_path = NULL, answer_width_px = NULL, answer_height_px = NULL,
+         updated_at = ? WHERE paper_id = ? AND answer_image_path IS NOT NULL`
+    )
+    .run(new Date().toISOString(), paperId)
+  return info.changes
 }
 
 /**

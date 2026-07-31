@@ -9,23 +9,29 @@ import TemplateView from './views/TemplateView'
 import BankView from './views/BankView'
 import BasketView from './views/BasketView'
 
+import AnswerMatchView from './views/AnswerMatchView'
+import ErrorBoundary from './components/ErrorBoundary'
+
 function App(): React.JSX.Element {
   return (
     <HashRouter>
       <Routes>
         {/* 库区:常驻侧边导航 */}
         <Route element={<LibraryLayout />}>
-          <Route path="/" element={<HomeView />} />
-          <Route path="/templates" element={<TemplateView />} />
-          <Route path="/bank" element={<BankView />} />
-          <Route path="/basket" element={<BasketView />} />
+          <Route path="/" element={<ErrorBoundary><HomeView /></ErrorBoundary>} />
+          <Route path="/templates" element={<ErrorBoundary><TemplateView /></ErrorBoundary>} />
+          <Route path="/bank" element={<ErrorBoundary><BankView /></ErrorBoundary>} />
+          <Route path="/basket" element={<ErrorBoundary><BasketView /></ErrorBoundary>} />
         </Route>
 
         {/* 工作流区:全屏专注+步骤指示 */}
+        {/* 每个视图各包一层 ErrorBoundary：单页渲染异常只毁那一页，
+            不再整棵树卸载成白屏（且能看到错误信息 + 回主页）。 */}
         <Route element={<WorkflowLayout />}>
-          <Route path="/crop/:paperId" element={<CropView />} />
-          <Route path="/post/:paperId" element={<PostProcessView />} />
-          <Route path="/review/:paperId" element={<PaperReviewView />} />
+          <Route path="/crop/:paperId" element={<ErrorBoundary><CropView /></ErrorBoundary>} />
+          <Route path="/post/:paperId" element={<ErrorBoundary><PostProcessView /></ErrorBoundary>} />
+          <Route path="/review/:paperId" element={<ErrorBoundary><PaperReviewView /></ErrorBoundary>} />
+          <Route path="/answer/:paperId" element={<ErrorBoundary><AnswerMatchView /></ErrorBoundary>} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

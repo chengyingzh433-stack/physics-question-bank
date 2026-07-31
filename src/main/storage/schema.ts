@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS papers (
   id INTEGER PRIMARY KEY, name TEXT NOT NULL,
   source_pdf_path TEXT, original_filename TEXT, page_count INTEGER DEFAULT 0,
   status TEXT DEFAULT 'importing', year INTEGER, source TEXT,
+  kind TEXT NOT NULL DEFAULT 'paper',
+  parent_paper_id INTEGER REFERENCES papers(id) ON DELETE CASCADE,
   created_at TEXT, updated_at TEXT);
 
 CREATE TABLE IF NOT EXISTS pages (
@@ -64,6 +66,7 @@ CREATE TABLE IF NOT EXISTS questions (
   difficulty_id INTEGER REFERENCES difficulties(id) ON DELETE SET NULL,
   is_merged INTEGER DEFAULT 0, image_path TEXT, width_px INTEGER, height_px INTEGER,
   year_override INTEGER, source_override TEXT,
+  answer_image_path TEXT, answer_width_px INTEGER, answer_height_px INTEGER,
   created_at TEXT, updated_at TEXT);
 
 CREATE TABLE IF NOT EXISTS question_segments (

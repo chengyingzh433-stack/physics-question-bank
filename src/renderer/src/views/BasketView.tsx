@@ -10,7 +10,8 @@ import {
   Stack,
   Tooltip,
   Affix,
-  LoadingOverlay
+  LoadingOverlay,
+  Select
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconArrowUp, IconArrowDown, IconTrash, IconFileExport } from '@tabler/icons-react'
@@ -25,6 +26,7 @@ function BasketView(): React.JSX.Element {
   const [qMap, setQMap] = useState<Record<number, BankQuestionDTO>>({})
   const [groupHeaders, setGroupHeaders] = useState<Record<number, string>>({})
   const [exportTitle, setExportTitle] = useState('物理试卷')
+  const [answerMode, setAnswerMode] = useState<'none' | 'append' | 'inline'>('none')
   const [busy, setBusy] = useState(false)
 
   const reload = useCallback(async () => {
@@ -69,7 +71,7 @@ function BasketView(): React.JSX.Element {
     setBusy(true)
     try {
       const sid = await window.api.getOrCreateDraftSet()
-      const path = await window.api.exportBasketPdf(sid, exportTitle)
+      const path = await window.api.exportBasketPdf(sid, exportTitle, answerMode)
       if (path) {
         notifications.show({ title: '导出成功', message: path, color: 'green' })
       }
@@ -78,7 +80,7 @@ function BasketView(): React.JSX.Element {
     } finally {
       setBusy(false)
     }
-  }, [exportTitle])
+  }, [exportTitle, answerMode])
 
   if (items.length === 0) {
     return (
@@ -175,13 +177,26 @@ function BasketView(): React.JSX.Element {
       {/* 固定底栏 */}
       <Affix position={{ bottom: 0, left: 220, right: 0 }}>
         <Paper shadow="md" p="md" radius={0} withBorder style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>
-          <Group justify="space-between">
+          <Group justify="space-between" wrap="wrap" gap="sm">
             <TextInput
               label="试卷标题"
               value={exportTitle}
               onChange={(e) => setExportTitle(e.currentTarget.value)}
               size="sm"
-              w={240}
+              w={200}
+            />
+            <Select
+              label="包含答案"
+              size="sm"
+              w={160}
+              value={answerMode}
+              onChange={(v) => setAnswerMode((v as 'none' | 'append' | 'inline') ?? 'none')}
+              data={[
+                { value: 'none', label: '不含答案' },
+                { value: 'append', label: '末尾参考答案' },
+                { value: 'inline', label: '每题后紧跟' }
+              ]}
+              allowDeselect={false}
             />
             <Button
               color="sky"
@@ -189,6 +204,7 @@ function BasketView(): React.JSX.Element {
               onClick={handleExport}
               loading={busy}
               disabled={items.length === 0}
+              mt="lg"
             >
               导出 PDF
             </Button>

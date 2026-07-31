@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import {
   Stack,
   Card,
@@ -77,9 +77,11 @@ interface PageWithRotation {
 function PostProcessView(): React.JSX.Element | null {
   const { paperId } = useParams<{ paperId: string }>()
   const pid = Number(paperId)
+  const navigate = useNavigate()
 
   const [doc, setDoc] = useState<PdfDocument | null>(null)
   const [docDestroy, setDocDestroy] = useState<(() => Promise<void>) | null>(null)
+  const [paper, setPaper] = useState<{ id: number; name: string; kind: 'paper' | 'answer'; parent_paper_id: number | null } | null>(null)
   const [pages, setPages] = useState<PageWithRotation[]>([])
   const [segments, setSegments] = useState<SegmentDTO[]>([])
   const [showDeleted, setShowDeleted] = useState(false)
@@ -94,6 +96,9 @@ function PostProcessView(): React.JSX.Element | null {
   const [error, setError] = useState<string | null>(null)
   const [paperStatus, setPaperStatus] = useState<string | null>(null)
   const [finalizeProgress, setFinalizeProgress] = useState<{ current: number; total: number } | null>(null)
+
+  // M14.5 B4: 答案模式 —— 答案卷走后期处理流程（删除/合并），但不入库出图
+  const isAnswerMode = paper?.kind === 'answer'
 
   // 标签数据（章节/知识点/难度）
   const [chapters, setChapters] = useState<{ id: number; name: string }[]>([])
@@ -153,8 +158,19 @@ function PostProcessView(): React.JSX.Element | null {
   }, [])
 
   const reloadAll = useCallback(async () => {
-    const paper = await window.api.getPaper(pid)
-    setPaperStatus(paper?.status ?? null)
+    const paperRow = await window.api.getPaper(pid)
+    setPaperStatus(paperRow?.status ?? null)
+    setPaper(
+      paperRow
+        ? {
+            id: paperRow.id,
+            name: paperRow.name,
+            kind: paperRow.kind,
+            parent_paper_id: paperRow.parent_paper_id
+          }
+        : null
+    )
+    const answerMode = paperRow?.kind === 'answer'
     const pgs = await window.api.getPages(pid)
     setPages(pgs.map((p) => ({
       id: p.id,
@@ -173,6 +189,9 @@ function PostProcessView(): React.JSX.Element | null {
       for (const s of segs) { if (s.id !== undefined) map[s.id] = q.id }
     }
     setSegToQuestion(map)
+    // 答案模式不需要题型/模板/标签——答案单元只做删除和合并，
+    // 这些 IPC 全部跳过（每题一次 getQuestionKnowledgePoints 在大卷上不便宜）。
+    if (answerMode) return
     setTypes(await window.api.listQuestionTypes())
     setTemplates(await window.api.listTemplates())
     // 标签数据
@@ -425,6 +444,10 @@ function PostProcessView(): React.JSX.Element | null {
 
   const handleFinalize = useCallback(async () => {
     if (!doc) return
+    // 红线守卫：答案卷绝不能走入库出图这条路。它会写 image_path（答案组就成了
+    // "已入库题"）、setPaperStatus(pid,'done')、套题型模板——对答案卷全是错的。
+    // 答案卷的"完成"走 handleAnswerDone，只跳转不写库。
+    if (isAnswerMode) return
     const isRedo = paperStatus === 'done'
     modals.openConfirmModal({
       title: isRedo ? '重新生成题图' : '完成入库',
@@ -548,7 +571,19 @@ function PostProcessView(): React.JSX.Element | null {
         }
       }
     })
-  }, [doc, pid, reloadAll, clearUndoStack, paperStatus, selectedTemplate, rules])
+  }, [doc, pid, reloadAll, clearUndoStack, paperStatus, selectedTemplate, rules, isAnswerMode])
+
+  // 答案模式的"完成"：不写库、不出图，只把合并关系留在 question_segments 里，
+  // 然后回到答案匹配页。答案图仍在匹配确认时才渲染（写到题目行的
+  // answer_image_path），所以这里没有任何持久化动作。
+  const handleAnswerDone = useCallback(() => {
+    const parentId = paper?.parent_paper_id
+    if (parentId == null) {
+      setError('答案卷缺少 parent_paper_id，无法回到匹配页')
+      return
+    }
+    navigate(`/answer/${parentId}`)
+  }, [paper, navigate])
 
   // UX2-3: 缩放档位变更时持久化
   const handleThumbSizeChange = useCallback((label: string) => {
@@ -586,20 +621,37 @@ function PostProcessView(): React.JSX.Element | null {
         >
           合并选中
         </Button>
-        <Button
-          size="sm"
-          color={paperStatus === 'done' ? 'orange' : 'sky'}
-          leftSection={paperStatus === 'done' ? <IconRefresh size={14} /> : <IconCheck size={14} />}
-          onClick={handleFinalize}
-          disabled={busy}
-          fullWidth
-        >
-          {paperStatus === 'done' ? '重新生成题图' : '完成入库'}
-        </Button>
-        {paperStatus === 'done' && (
-          <Text size="xs" c="dimmed" ta="center">
-            此卷已入库
-          </Text>
+        {/* 答案模式没有"入库"概念：合并关系已经随 handleMerge 写进 question_segments，
+            这里只是走去匹配页。所以按钮不 disable busy 之外的任何条件，也不显示入库状态。 */}
+        {isAnswerMode ? (
+          <Button
+            size="sm"
+            color="violet"
+            leftSection={<IconCheck size={14} />}
+            onClick={handleAnswerDone}
+            disabled={busy}
+            fullWidth
+          >
+            去匹配答案
+          </Button>
+        ) : (
+          <>
+            <Button
+              size="sm"
+              color={paperStatus === 'done' ? 'orange' : 'sky'}
+              leftSection={paperStatus === 'done' ? <IconRefresh size={14} /> : <IconCheck size={14} />}
+              onClick={handleFinalize}
+              disabled={busy}
+              fullWidth
+            >
+              {paperStatus === 'done' ? '重新生成题图' : '完成入库'}
+            </Button>
+            {paperStatus === 'done' && (
+              <Text size="xs" c="dimmed" ta="center">
+                此卷已入库
+              </Text>
+            )}
+          </>
         )}
         {/* UX2-2: 撤销按钮 */}
         <Tooltip label={undoStack.length > 0 ? '撤销上一步 (Ctrl+Z)' : '无可撤销操作'}>
@@ -641,40 +693,45 @@ function PostProcessView(): React.JSX.Element | null {
       {/* 工具区 */}
       <Stack gap="sm">
         <Text size="sm" fw={600}>工具</Text>
-        <Group gap="xs">
-          <IconTemplate size={16} style={{ opacity: 0.5 }} />
-          <Select
-            placeholder="套用模板预览"
-            data={templateData}
-            value={selectedTemplate != null ? String(selectedTemplate) : null}
-            onChange={(v) => setSelectedTemplate(v ? Number(v) : null)}
-            size="sm"
-            w={160}
-            clearable
-          />
-          <ActionIcon
-            variant="subtle"
-            size="sm"
-            disabled={selectedTemplate == null}
-            onClick={() => setTemplateDrawerOpen(true)}
-            title="编辑模板规则"
-          >
-            <IconEdit size={14} />
-          </ActionIcon>
-        </Group>
-        {/* 模板 Select 只是预览标注，要真正写进库必须点这个按钮（或直接入库时自动写） */}
-        <Tooltip label={selectedTemplate == null ? '先选一个模板' : '把预览的题型真正写入数据库'}>
-          <Button
-            size="sm"
-            variant="light"
-            color="teal"
-            onClick={handleApplyTemplateToQuestions}
-            disabled={busy || selectedTemplate == null || rules.length === 0}
-            fullWidth
-          >
-            套用题型到题目
-          </Button>
-        </Tooltip>
+        {/* 题型模板只对题目卷有意义——答案没有题型，整块隐藏（M14.5 B4） */}
+        {!isAnswerMode && (
+          <>
+            <Group gap="xs">
+              <IconTemplate size={16} style={{ opacity: 0.5 }} />
+              <Select
+                placeholder="套用模板预览"
+                data={templateData}
+                value={selectedTemplate != null ? String(selectedTemplate) : null}
+                onChange={(v) => setSelectedTemplate(v ? Number(v) : null)}
+                size="sm"
+                w={160}
+                clearable
+              />
+              <ActionIcon
+                variant="subtle"
+                size="sm"
+                disabled={selectedTemplate == null}
+                onClick={() => setTemplateDrawerOpen(true)}
+                title="编辑模板规则"
+              >
+                <IconEdit size={14} />
+              </ActionIcon>
+            </Group>
+            {/* 模板 Select 只是预览标注，要真正写进库必须点这个按钮（或直接入库时自动写） */}
+            <Tooltip label={selectedTemplate == null ? '先选一个模板' : '把预览的题型真正写入数据库'}>
+              <Button
+                size="sm"
+                variant="light"
+                color="teal"
+                onClick={handleApplyTemplateToQuestions}
+                disabled={busy || selectedTemplate == null || rules.length === 0}
+                fullWidth
+              >
+                套用题型到题目
+              </Button>
+            </Tooltip>
+          </>
+        )}
         <Switch
           label="显示已删除"
           size="sm"
@@ -730,6 +787,7 @@ function PostProcessView(): React.JSX.Element | null {
                 onUnmerge={handleUnmerge}
                 maxW={thumbMaxW}
                 scrollContainerRef={mainScrollRef}
+                isAnswerMode={isAnswerMode}
                 chapters={chapters}
                 kps={kps}
                 diffs={diffs}
@@ -851,6 +909,8 @@ function QuestionCard(props: {
   onUnmerge: (questionId: number) => void
   maxW: number
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
+  /** 答案模式（M14.5）：卡片改称"答案 N"，不显示题型、不显示标签区。 */
+  isAnswerMode: boolean
   // 标签 props
   chapters: { id: number; name: string }[]
   kps: { id: number; name: string }[]
@@ -869,6 +929,7 @@ function QuestionCard(props: {
   const {
     preview, doc, pages, types, templateTypeMap, questions,
     selected, onToggleSelect, onDelete, onUnmerge, maxW, scrollContainerRef,
+    isAnswerMode,
     chapters, kps, diffs, qKps, newKpNames, newChapterName,
     onSetChapter, onSetDifficulty, onSetKps, onCreateKp, onCreateChapter,
     onNewKpNameChange, onNewChapterNameChange
@@ -901,8 +962,10 @@ function QuestionCard(props: {
       {/* 标注条 */}
       <Group justify="space-between" mb="xs">
         <Group gap="xs">
-          <Badge color="sky" variant="filled">第 {preview.previewNumber} 题</Badge>
-          <Badge color={typeName === '未定' ? 'gray' : 'teal'} variant="light">{typeName}</Badge>
+          <Badge color="sky" variant="filled">
+            {isAnswerMode ? `答案 ${preview.previewNumber}` : `第 ${preview.previewNumber} 题`}
+          </Badge>
+          {!isAnswerMode && <Badge color={typeName === '未定' ? 'gray' : 'teal'} variant="light">{typeName}</Badge>}
           {preview.isMerged && <Badge color="orange" variant="light">合并</Badge>}
         </Group>
         <Group gap="xs">
@@ -932,9 +995,9 @@ function QuestionCard(props: {
       {/* 拼合缩略图 */}
       <QuestionThumb doc={doc} preview={preview} pages={pages} maxW={maxW} scrollContainerRef={scrollContainerRef} />
 
-      {/* 标签区：对所有题目（含独立片段）都显示。
+      {/* 标签区：答案模式下隐藏（答案组无需章节/难度/知识点）。
           独立片段 questionId 为 null 时，赋标签会先 ensureQuestionId 建单段行。 */}
-      <Stack gap="xs" mt="sm">
+      {!isAnswerMode && <Stack gap="xs" mt="sm">
         <Group gap="xs" align="flex-end">
           <Select
             label="章节"
@@ -1011,7 +1074,7 @@ function QuestionCard(props: {
             </Button>
           </Group>
         </div>
-      </Stack>
+      </Stack>}
     </Card>
   )
 }

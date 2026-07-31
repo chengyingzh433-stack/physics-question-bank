@@ -28,40 +28,58 @@ export function registerIpc(): void {
   })
 
   /** 导入试卷：弹文件选择框 → createPaper → 复制 source.pdf。
-   *  页尺寸由渲染进程后续用 pdfjs 读取并回写（pages:bulkAdd）。 */
-  ipcMain.handle('papers:import', async (e, name: string) => {
-    const win = BrowserWindow.fromWebContents(e.sender)
-    const result = await dialog.showOpenDialog(win!, {
-      title: '选择试卷 PDF',
-      filters: [{ name: 'PDF', extensions: ['pdf'] }],
-      properties: ['openFile']
-    })
-    if (result.canceled || result.filePaths.length === 0) return null
+   *  页尺寸由渲染进程后续用 pdfjs 读取并回写（pages:bulkAdd）。
+   *  M14: options.kind='answer' + parentPaperId 时建答案卷（向后兼容，不传行为不变）。 */
+  ipcMain.handle(
+    'papers:import',
+    async (
+      e,
+      name: string,
+      options?: { kind?: 'paper' | 'answer'; parentPaperId?: number | null }
+    ) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const isAnswer = options?.kind === 'answer'
+      const result = await dialog.showOpenDialog(win!, {
+        title: isAnswer ? '选择答案 PDF' : '选择试卷 PDF',
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+        properties: ['openFile']
+      })
+      if (result.canceled || result.filePaths.length === 0) return null
 
-    const srcPath = result.filePaths[0]
-    const db = getDb()
-    const paperName = name?.trim() || basename(srcPath, '.pdf')
-    const paperId = paperRepo.createPaper(db, paperName)
+      const srcPath = result.filePaths[0]
+      const db = getDb()
+      const paperName = name?.trim() || basename(srcPath, '.pdf')
+      const paperId = paperRepo.createPaper(db, paperName, options)
 
-    try {
-      const destPath = await fileService.copySourcePdf(paperId, srcPath)
-      // 记录来源路径与原始文件名
-      db.prepare(
-        `UPDATE papers SET source_pdf_path = ?, original_filename = ?, updated_at = ? WHERE id = ?`
-      ).run(destPath, basename(srcPath), new Date().toISOString(), paperId)
-      return paperRepo.getPaper(db, paperId)
-    } catch (err) {
-      // 复制失败：回滚（删除刚建的 paper，级联清理）
-      paperRepo.deletePaper(db, paperId)
-      throw err
+      try {
+        const destPath = await fileService.copySourcePdf(paperId, srcPath)
+        // 记录来源路径与原始文件名
+        db.prepare(
+          `UPDATE papers SET source_pdf_path = ?, original_filename = ?, updated_at = ? WHERE id = ?`
+        ).run(destPath, basename(srcPath), new Date().toISOString(), paperId)
+        return paperRepo.getPaper(db, paperId)
+      } catch (err) {
+        // 复制失败：回滚（删除刚建的 paper，级联清理）
+        paperRepo.deletePaper(db, paperId)
+        throw err
+      }
     }
+  )
+
+  /** 取某题目卷的答案卷（M14）。无则 null。 */
+  ipcMain.handle('papers:getAnswerPaper', (_e, parentPaperId: number) => {
+    return paperRepo.getAnswerPaper(getDb(), parentPaperId)
   })
 
   ipcMain.handle('papers:delete', async (_e, id: number) => {
     // 先删 DB 行（级联清理 pages/cut_lines/segments/questions 等），再删磁盘文件。
     // 顺序：DB 是真值——磁盘删失败不影响一致性，仅留孤儿文件；DB 绝不能留悬空引用。
-    paperRepo.deletePaper(getDb(), id)
+    // M14: deletePaper 返回被一并删掉的答案卷 id，它们的磁盘目录也要清。
+    const answerIds = paperRepo.deletePaper(getDb(), id)
     await fileService.deletePaperDir(id)
+    for (const aid of answerIds) {
+      await fileService.deletePaperDir(aid)
+    }
     return
   })
 
@@ -229,6 +247,28 @@ export function registerIpc(): void {
     }
   )
 
+  // M14: 保存答案图 + 绑定到题目
+  ipcMain.handle(
+    'files:saveAnswerPng',
+    async (_e, paperId: number, questionId: number, data: ArrayBuffer) => {
+      return fileService.saveAnswerPng(paperId, questionId, data)
+    }
+  )
+  ipcMain.handle(
+    'questions:setAnswerImage',
+    (_e, questionId: number, imagePath: string | null, widthPx: number | null, heightPx: number | null) => {
+      questionRepo.setQuestionAnswer(getDb(), questionId, imagePath, widthPx, heightPx)
+    }
+  )
+  /** M14: 清空某题目卷下所有题的答案图绑定 + 删磁盘 a_*.png。
+   *  顺序同 papers:delete —— 先 DB（真值）再磁盘，磁盘失败最多留孤儿文件。
+   *  返回被清掉绑定的题数，供 UI 提示。 */
+  ipcMain.handle('questions:clearAnswersByPaper', async (_e, paperId: number) => {
+    const n = questionRepo.clearAnswersByPaper(getDb(), paperId)
+    await fileService.deleteAnswerPngs(paperId)
+    return n
+  })
+
   // ---- question types ----
   ipcMain.handle('types:list', () => {
     return questionTypeRepo.listQuestionTypes(getDb())
@@ -336,9 +376,12 @@ export function registerIpc(): void {
   )
 
   // ---- export ----
-  ipcMain.handle('export:basket', async (_e, setId: number, title: string) => {
-    return exportService.exportBasketPdf(setId, title)
-  })
+  ipcMain.handle(
+    'export:basket',
+    async (_e, setId: number, title: string, answerMode?: 'none' | 'append' | 'inline') => {
+      return exportService.exportBasketPdf(setId, title, answerMode ?? 'none')
+    }
+  )
 
   // ---- db 维护（M12-2）----
   /** 备份数据库：弹保存框 → better-sqlite3 的 backup()（安全处理 WAL，避免裸 copy 读到半写状态）。

@@ -34,6 +34,9 @@ function q(id: number, isMerged: number): QuestionDTO {
     source_override: null,
     effective_year: null,
     effective_source: null,
+    answer_image_path: null,
+    answer_width_px: null,
+    answer_height_px: null,
     created_at: null,
     updated_at: null
   }

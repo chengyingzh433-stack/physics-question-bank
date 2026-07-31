@@ -1,10 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { buildQuestionFilter, buildQuestionQuery } from './questionFilter'
 
+// 无条件时的基线 where：已入库 + 只来自题目卷（M14.5 加了后者）
+const BASE_WHERE = "q.image_path IS NOT NULL AND p.kind = 'paper'"
+
 describe('buildQuestionFilter', () => {
-  it('无条件仅返回 image_path 非空', () => {
+  it('无条件仅返回题目卷的已入库题', () => {
     const r = buildQuestionFilter({})
-    expect(r.where).toBe('q.image_path IS NOT NULL')
+    expect(r.where).toBe(BASE_WHERE)
     expect(r.params).toEqual([])
   })
 
@@ -25,13 +28,13 @@ describe('buildQuestionFilter', () => {
     expect(r.where).toContain('q.paper_id = ?')
     expect(r.where).toContain('q.chapter_id = ?')
     expect(r.where).toContain('q.difficulty_id = ?')
-    expect(r.where.split(' AND ').length).toBe(5) // 4 条件 + image_path
+    expect(r.where.split(' AND ').length).toBe(6) // 4 条件 + image_path + kind
     expect(r.params).toEqual([1, 2, 3, 4])
   })
 
   it('知识点命中任一（kp_ids）— where 不含 kp，kp 走 join', () => {
     const r = buildQuestionFilter({ kp_ids: [5, 6, 7] })
-    expect(r.where).toBe('q.image_path IS NOT NULL')
+    expect(r.where).toBe(BASE_WHERE)
     expect(r.params).toEqual([]) // kp params 在 buildQuestionQuery 层加
   })
 })
@@ -81,13 +84,13 @@ describe('buildQuestionFilter — 年份/出处（M13）', () => {
 
   it('年份/出处为 null 时不加条件', () => {
     const r = buildQuestionFilter({ year: null, source: null })
-    expect(r.where).toBe('q.image_path IS NOT NULL')
+    expect(r.where).toBe(BASE_WHERE)
     expect(r.params).toEqual([])
   })
 
   it('出处为空串时不加条件（空串不是有效筛选值）', () => {
     const r = buildQuestionFilter({ source: '' })
-    expect(r.where).toBe('q.image_path IS NOT NULL')
+    expect(r.where).toBe(BASE_WHERE)
     expect(r.params).toEqual([])
   })
 
@@ -103,5 +106,25 @@ describe('buildQuestionFilter — 年份/出处（M13）', () => {
     const { sql } = buildQuestionQuery({ year: 2023 })
     expect(sql).toContain('JOIN papers p ON p.id = q.paper_id')
     expect(sql).toContain('COALESCE(q.year_override, p.year) = ?')
+  })
+})
+
+// M14.5：答案卷也会产生 question 行（承载合并组），必须挡在题库外。
+// 这几条是这层隔离的唯一自动化保障，别因为"答案行没有 image_path"就删掉——
+// 那只是巧合防护，一旦答案卷将来写了图就会漏。
+describe('buildQuestionFilter — 答案卷隔离（M14.5）', () => {
+  it('任何筛选组合都带 kind 过滤', () => {
+    for (const c of [{}, { type_id: 1 }, { year: 2024 }, { kp_ids: [3] }, { paper_id: 9 }]) {
+      expect(buildQuestionFilter(c).where).toContain("p.kind = 'paper'")
+    }
+  })
+
+  it('kind 条件不占 params 位（字面量而非占位符）', () => {
+    const r = buildQuestionFilter({ type_id: 7 })
+    expect(r.params).toEqual([7])
+  })
+
+  it('buildQuestionQuery 的完整 SQL 含 kind 过滤', () => {
+    expect(buildQuestionQuery({}).sql).toContain("p.kind = 'paper'")
   })
 })

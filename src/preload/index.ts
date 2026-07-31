@@ -6,7 +6,8 @@ const api: Api = {
   // papers
   listPapers: () => ipcRenderer.invoke('papers:list'),
   getPaper: (id) => ipcRenderer.invoke('papers:get', id),
-  importPaper: (name) => ipcRenderer.invoke('papers:import', name),
+  importPaper: (name, options) => ipcRenderer.invoke('papers:import', name, options),
+  getAnswerPaper: (parentPaperId) => ipcRenderer.invoke('papers:getAnswerPaper', parentPaperId),
   deletePaper: (id) => ipcRenderer.invoke('papers:delete', id),
   updatePaperMeta: (paperId, fields) => ipcRenderer.invoke('papers:updateMeta', paperId, fields),
   // pages
@@ -55,6 +56,11 @@ const api: Api = {
     ipcRenderer.invoke('papers:setStatus', paperId, status),
   saveQuestionPng: (paperId, questionId, data) =>
     ipcRenderer.invoke('files:saveQuestionPng', paperId, questionId, data),
+  saveAnswerPng: (paperId, questionId, data) =>
+    ipcRenderer.invoke('files:saveAnswerPng', paperId, questionId, data),
+  setAnswerImage: (questionId, imagePath, widthPx, heightPx) =>
+    ipcRenderer.invoke('questions:setAnswerImage', questionId, imagePath, widthPx, heightPx),
+  clearAnswersByPaper: (paperId) => ipcRenderer.invoke('questions:clearAnswersByPaper', paperId),
   // question types
   listQuestionTypes: () => ipcRenderer.invoke('types:list'),
   createQuestionType: (name) => ipcRenderer.invoke('types:create', name),
@@ -95,7 +101,7 @@ const api: Api = {
   addToSet: (setId, questionId) => ipcRenderer.invoke('sets:add', setId, questionId),
   removeFromSet: (itemId) => ipcRenderer.invoke('sets:remove', itemId),
   updateSetItem: (itemId, fields) => ipcRenderer.invoke('sets:updateItem', itemId, fields),
-  exportBasketPdf: (setId, title) => ipcRenderer.invoke('export:basket', setId, title),
+  exportBasketPdf: (setId, title, answerMode) => ipcRenderer.invoke('export:basket', setId, title, answerMode),
   backupDatabase: () => ipcRenderer.invoke('db:backup'),
   getSetting: (key, defaultValue) => ipcRenderer.invoke('settings:get', key, defaultValue),
   setSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),
