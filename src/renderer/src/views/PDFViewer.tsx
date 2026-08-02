@@ -41,7 +41,7 @@ interface ZoomAnchor {
 }
 
 function PDFViewer(props: PDFViewerProps): React.JSX.Element | null {
-  const { sourceUrl, pages, zoomMode, zoomPercent, onZoomPercentChange, overlayForPage } = props
+  const { sourceUrl, pages, zoomMode, zoomPercent, onZoomPercentChange, onVisiblePageChange, overlayForPage } = props
   const [doc, setDoc] = useState<PdfDocument | null>(null)
   const [docDestroy, setDocDestroy] = useState<(() => Promise<void>) | null>(null)
   const [containerW, setContainerW] = useState(800)
@@ -117,6 +117,38 @@ function PDFViewer(props: PDFViewerProps): React.JSX.Element | null {
     scroller.scrollLeft = ratioX * newContentW - (anchor.clientX - scroller.getBoundingClientRect().left)
     scroller.scrollTop = ratioY * newContentH - (anchor.clientY - scroller.getBoundingClientRect().top)
   }, [zoomMode, zoomPercent, containerW, containerH, pages])
+
+  // 滚动监听：根据viewport中心点判断当前可见页，触发onVisiblePageChange回调
+  useEffect(() => {
+    const scroller = scrollRef.current
+    if (!scroller || !onVisiblePageChange) return
+
+    const handleScroll = () => {
+      const viewportCenter = scroller.clientHeight / 2
+      let closestIdx = 0
+      let minDistance = Infinity
+
+      const pageElements = scroller.querySelectorAll('[data-page-id]')
+      pageElements.forEach((el, idx) => {
+        const rect = el.getBoundingClientRect()
+        const scrollerRect = scroller.getBoundingClientRect()
+        const pageCenter = rect.top - scrollerRect.top + rect.height / 2
+        const distance = Math.abs(pageCenter - viewportCenter)
+
+        if (distance < minDistance) {
+          minDistance = distance
+          closestIdx = idx
+        }
+      })
+
+      onVisiblePageChange(closestIdx)
+    }
+
+    scroller.addEventListener('scroll', handleScroll, { passive: true })
+    handleScroll() // 初次调用，设置初始activePageId
+
+    return () => scroller.removeEventListener('scroll', handleScroll)
+  }, [onVisiblePageChange])
 
   // T4: Ctrl+滚轮以光标为锚点缩放
   const onWheel = useCallback(

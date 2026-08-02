@@ -1,14 +1,14 @@
 # 开发进度记录
 
-- 日期：2026-07-31（更新，…+ **M14/M14.5 答案功能完成**）
-- 关联文档：…`-crop-box-select-issues.md`（框选需求）、`-crop-box-select-solution.md`（框选技术方案）、`-postprocess-ux-issues-3.md`（第三轮需求：软删除/标签/模板/答案）、`-postprocess-ux-solution-3.md`（第三轮技术方案）、`2026-07-26-m14-answer-solution.md`（M14 答案功能技术手册）、`2026-07-28-answer-postprocess-solution.md`（M14.5 答案后期处理技术手册）
+- 日期：2026-08-02（更新，**M15 走查 + 问题1/3修复**）
+- 关联文档：…`-crop-box-select-issues.md`（框选需求）、`-crop-box-select-solution.md`（框选技术方案）、`-postprocess-ux-issues-3.md`（第三轮需求：软删除/标签/模板/答案）、`-postprocess-ux-solution-3.md`（第三轮技术方案）、`2026-07-26-m14-answer-solution.md`（M14 答案功能技术手册）、`2026-07-28-answer-postprocess-solution.md`（M14.5 答案后期处理技术手册）、`2026-08-02-m15-walkthrough-issues.md`（M15 走查问题）、`2026-08-02-m15-technical-handbook.md`（M15 修复技术手册）、`2026-08-02-m15-fix-test-plan.md`（M15 修复测试计划）
 - 本文档记录截至当前的开发状态，对照技术设计文档逐节说明实现情况，并列出剩余工作。
 
 ---
 
 ## 1. 总体状态
 
-主线链路 **M0→M1→M2→M3→M4**（导入→裁切→后期处理→入库出图）代码全部完成，M5–M10 的功能代码也已完成。**前端 UI 已用 Mantine 7 重构完成**（2026-07-07）。**M11 打包已修复**（2026-07-07，`npmRebuild: false` + npmmirror 镜像 + winCodeSign 手动解压）。**加固项 T3–T8 全部完成**（2026-07-07）。**裁切/后期/复查白屏 bug 已修复**（2026-07-07，命令式 innerHTML 与 React 子节点解耦）。**后期处理 UX 第一轮重构已完成**（2026-07-07，UX-1/2/3：片段网格→题目纵向列表+拼合大图+题号题型标注）。**缩略图渲染竞态 + 跨页排序 bug 已修复**（2026-07-07，详见 5.4）。**后期处理第二轮 UX 重构已完成**（2026-07-07，UX2-1 侧栏布局 + UX2-2 Ctrl+Z 撤销 + UX2-3 缩略图缩放，详见 5.6）。**自定义存储位置已完成**（2026-07-07，设置 Drawer 可改存储路径+自动迁移，详见 5.7）。**裁切框选已完成**（2026-07-08，新增 `manual_boxes` 表 + `deriveAllSegments` 合并函数 + CropOverlay 框选交互 + CropView 工具栏 4 档，详见 5.7）。**第三轮 UX 已完成**（2026-07-08，软删除原地显示+标签现场创建+模板现场编辑，详见 5.8）。**第四轮 UX 已完成**（2026-07-09，独立片段标签赋值修复+复查页入库门禁+图片占位兜底，详见 5.9）。**M13 年份/出处已完成**（2026-07-26，试卷默认+单题覆盖，SQL 层 COALESCE 统一口径，详见 5.10）。**M14/M14.5 答案功能已完成**（2026-07-31，答案导入+裁切+匹配+后期处理+工作流隔离，详见 5.12/5.13）。**自测通过**（typecheck **零错误**、build 通过、**79 个单测全绿**）。
+主线链路 **M0→M1→M2→M3→M4**（导入→裁切→后期处理→入库出图）代码全部完成，M5–M10 的功能代码也已完成。**前端 UI 已用 Mantine 7 重构完成**（2026-07-07）。**M11 打包已修复**（2026-07-07，`npmRebuild: false` + npmmirror 镜像 + winCodeSign 手动解压）。**加固项 T3–T8 全部完成**（2026-07-07）。**裁切/后期/复查白屏 bug 已修复**（2026-07-07，命令式 innerHTML 与 React 子节点解耦）。**后期处理 UX 第一轮重构已完成**（2026-07-07，UX-1/2/3：片段网格→题目纵向列表+拼合大图+题号题型标注）。**缩略图渲染竞态 + 跨页排序 bug 已修复**（2026-07-07，详见 5.4）。**后期处理第二轮 UX 重构已完成**（2026-07-07，UX2-1 侧栏布局 + UX2-2 Ctrl+Z 撤销 + UX2-3 缩略图缩放，详见 5.6）。**自定义存储位置已完成**（2026-07-07，设置 Drawer 可改存储路径+自动迁移，详见 5.7）。**裁切框选已完成**（2026-07-08，新增 `manual_boxes` 表 + `deriveAllSegments` 合并函数 + CropOverlay 框选交互 + CropView 工具栏 4 档，详见 5.7）。**第三轮 UX 已完成**（2026-07-08，软删除原地显示+标签现场创建+模板现场编辑，详见 5.8）。**第四轮 UX 已完成**（2026-07-09，独立片段标签赋值修复+复查页入库门禁+图片占位兜底，详见 5.9）。**M13 年份/出处已完成**（2026-07-26，试卷默认+单题覆盖，SQL 层 COALESCE 统一口径，详见 5.10）。**M14/M14.5 答案功能已完成**（2026-07-31，答案导入+裁切+匹配+后期处理+工作流隔离，详见 5.12/5.13）。**M15 走查完成 + 问题1/3已修复**（2026-08-02，撤销上一刀bug + 完成流程反馈Modal，详见 5.14）。**自测通过**（typecheck **零错误**、build 通过、**79 个单测全绿**）。
 
 **已验证可用**的硬链路：
 - Electron 31 + better-sqlite3（Electron ABI 125）原生模块加载 + SQL 读写
@@ -410,7 +410,7 @@ M13 人测期间发现 5 个问题，全部修复：
 - **M13 年份/出处** → ✅ **已完成并人测通过**（2026-07-26）。详见 5.10、5.11。
 - **M14 答案导入+裁切+匹配** → ✅ **已完成**（2026-07-31）。详见 5.12。
 - **M14.5 答案后期处理** → ✅ **已完成**（2026-07-31）。详见 5.13。
-- **M15 全链路验收走查** → ⏳ 下一阶段。用同一道题走完 框选→入库→绑答案→选题篮→导出训练资料，并完成拖欠的 T2。
+- **M15 全链路验收走查** → ✅ **已完成**（2026-08-02），问题1/3已修复，问题2推迟。详见 5.14。
 - **M16 PPT 导出** → ⏳ 待开工。pptxgenjs 每题一页可编辑。
 - **M17 架构审视** → ⏳ 待开工。PostProcessView 拆分、标签区抽共享组件、N+1 查询批量化、ViewportController 抽出等。
 
@@ -616,3 +616,38 @@ src/
 2. **github.com 下载 EOF**：electron-builder 下载 Electron 二进制从 github 直连失败。解决：设 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`。
 3. **winCodeSign 解压符号链接失败**：7zip 解压 darwin `.dylib` 符号链接时 Windows 无权限（"客户端没有所需特权"）。解决：手动用 `7za x archive.7z -ooutdir 'windows-*' 'rcedit*' 'appxAssets'` 只解压 win 部分到 `winCodeSign-2.6.0` 缓存目录。
 4. **`NotificationData` 无 `size` 属性**：Mantine 7 的 `notifications.show()` 参数不含 `size`。解决：删除 `size: 'sm'`。
+### 5.14 M15 走查 + 问题修复（2026-08-02）→ ✅ 问题1/3已完成
+
+走查结果见 `2026-08-02-m15-walkthrough-issues.md`，发现 3 个问题：
+
+**问题 1：撤销上一刀始终从第一页开始（🔴 P0 bug）** → ✅ **已修复**
+- **根因**：`PDFViewer.tsx` 定义了 `onVisiblePageChange` prop 但从未调用——scroll 事件、IntersectionObserver 都只管内部状态，`activePageId` 永远停留在初始值（第1页）。
+- **修复**：
+  - 第44行解构列表加 `onVisiblePageChange`（之前漏了）
+  - 第119行后新增 scroll listener useEffect：监听 `scrollRef` 的 scroll 事件，计算哪个 `[data-page-id]` 页面中心最接近 viewport 中心，调用 `onVisiblePageChange(closestIdx)`
+  - 初次调用 `handleScroll()` 正确设置初始 activePageId
+- **文件**：`src/renderer/src/views/PDFViewer.tsx`（+30行）
+- **测试计划**：见 `2026-08-02-m15-fix-test-plan.md` TC1-1～TC1-6 + TC-R1/R2（共8个用例）
+
+**问题 3：完成流程无结束提示（🟡 P1 UX）** → ✅ **已修复**
+- **现象**：答案匹配页点确认绑定后，只显示 toast notification（5秒消失），无明确的流程完成提示和后续引导。
+- **修复**：
+  - `AnswerMatchView.tsx` 导入 `IconAlertCircle`
+  - `handleConfirm` 成功路径在 `notifications.show` 前加 `modals.open`：
+    - Modal 标题✅ 答案匹配完成
+    - 显示统计：共 X 道题，已成功绑定 Y 道题的答案
+    - 部分配对时显示黄色 Alert：还有 Z 道题未绑定答案
+    - 关闭 Modal 后二次询问：返回主页 / 留在此页
+  - `handleConfirm` 前提条件加 `!paper` 守卫（修复 TS2345）
+- **文件**：`src/renderer/src/views/AnswerMatchView.tsx`（+30行）
+- **测试计划**：见 `2026-08-02-m15-fix-test-plan.md` TC3-1～TC3-5（共5个用例）
+
+**问题 2：框选片段需手动调整位置（🟡 P2 新需求）** → ⏳ **推迟到 M16/M17**
+- **技术分析**：需要 DB Schema 迁移（`question_segments.y_offset`）、`QuestionRenderService` 支持偏移、`PostProcessView` 拖动交互，成本~120行。
+- **决策**：优先级低于问题1/3，用户可通过重新裁切绕过。
+- **技术手册**：见 `2026-08-02-m15-technical-handbook.md` 问题2章节（仅分析，未实施）。
+
+**自测**：typecheck 零错误、build 通过、79 单测全绿。**人测待用户执行**（见测试计划 14 个用例）。
+
+**M15 状态**：✅ **核心问题已修复，问题2推迟**。技术手册见 `2026-08-02-m15-technical-handbook.md`，测试计划见 `2026-08-02-m15-fix-test-plan.md`。
+

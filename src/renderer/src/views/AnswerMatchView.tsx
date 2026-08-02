@@ -8,7 +8,7 @@ import { notifications } from '@mantine/notifications'
 import { modals } from '@mantine/modals'
 import {
   IconFileImport, IconArrowLeft, IconArrowRight,
-  IconCheck, IconX, IconRefresh, IconTrash, IconFileX
+  IconCheck, IconX, IconRefresh, IconTrash, IconFileX, IconAlertCircle
 } from '@tabler/icons-react'
 import type { QuestionDTO, SegmentDTO, PaperDTO, PageDTO } from '@shared/types'
 import { sourcePdfUrl } from '../services/ImportService'
@@ -251,7 +251,7 @@ function AnswerMatchView(): React.JSX.Element | null {
 
   // 确认绑定：渲染答案图并写库
   const handleConfirm = useCallback(async () => {
-    if (!answerDoc) return
+    if (!answerDoc || !paper) return
     setBusy(true)
     setError(null)
     try {
@@ -296,7 +296,39 @@ function AnswerMatchView(): React.JSX.Element | null {
 
       setProgress(null)
       await reload()
-      notifications.show({ title: '答案绑定完成', message: `${todo.length} 道题已绑定答案`, color: 'green' })
+
+      // 弹出完成总结Modal
+      modals.open({
+        title: '✅ 答案匹配完成',
+        children: (
+          <Stack gap="md">
+            <Text size="sm">
+              试卷《<strong>{paper.name}</strong>》共 <strong>{questions.length}</strong> 道题，
+              已成功绑定 <strong>{todo.length}</strong> 道题的答案。
+            </Text>
+            {todo.length < questions.length && (
+              <Alert color="yellow" icon={<IconAlertCircle size={16} />}>
+                还有 {questions.length - todo.length} 道题未绑定答案。
+                您可以稍后返回此页面继续配对。
+              </Alert>
+            )}
+            <Text size="xs" c="dimmed">
+              答案图已保存到题库，可在主页查看完整题目。
+            </Text>
+          </Stack>
+        ),
+        onClose: () => {
+          // Modal关闭后询问导航意图
+          modals.openConfirmModal({
+            title: '下一步',
+            children: <Text size="sm">是否返回主页查看题库？</Text>,
+            labels: { confirm: '返回主页', cancel: '留在此页' },
+            onConfirm: () => {
+              window.location.hash = '#/'
+            }
+          })
+        }
+      })
     } catch (e) {
       setError('绑定失败：' + String(e))
       setProgress(null)
