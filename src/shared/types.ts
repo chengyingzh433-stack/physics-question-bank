@@ -74,7 +74,8 @@ export interface Api {
   replaceDividers(pageId: number, xRatios: number[]): Promise<void>
   listCutLines(pageId: number): Promise<CutLineDTO[]>
   addCutLine(pageId: number, colIndex: number, yRatio: number): Promise<number>
-  undoLastCutLine(pageId: number): Promise<number | null>
+  /** 撤销全局最后一刀（跨所有页）。返回被删刀所在的 page_id 或 null。 */
+  undoLastCutLine(paperId: number): Promise<number | null>
   deleteCutLine(cutLineId: number): Promise<void>
   // manual boxes
   listManualBoxes(pageId: number): Promise<ManualBoxDTO[]>
@@ -88,7 +89,8 @@ export interface Api {
     isExcluded: number
   ): Promise<number>
   deleteManualBox(boxId: number): Promise<void>
-  undoLastManualBox(pageId: number): Promise<number | null>
+  /** 撤销全局最后一个框（跨所有页）。返回被删框所在的 page_id 或 null。 */
+  undoLastManualBox(paperId: number): Promise<number | null>
   // segments
   getSegmentsByPage(pageId: number): Promise<SegmentDTO[]>
   getSegmentsByPaper(paperId: number): Promise<SegmentDTO[]>

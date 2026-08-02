@@ -136,13 +136,14 @@ export function useCropData(paperId: number): {
   )
 
   const undoLastCutLine = useCallback(
-    async (pageId: number) => {
-      await window.api.undoLastCutLine(pageId)
-      const cuts = await window.api.listCutLines(pageId)
-      setCutLines((m) => ({ ...m, [pageId]: cuts }))
-      const page = pages.find((p) => p.id === pageId)
+    async (paperId: number) => {
+      const affectedPageId = await window.api.undoLastCutLine(paperId)
+      if (affectedPageId == null) return // 没有刀可撤
+      const cuts = await window.api.listCutLines(affectedPageId)
+      setCutLines((m) => ({ ...m, [affectedPageId]: cuts }))
+      const page = pages.find((p) => p.id === affectedPageId)
       if (page) {
-        await recomputeSegments(page, dividers[pageId] ?? [], cuts, manualBoxes[pageId] ?? [])
+        await recomputeSegments(page, dividers[affectedPageId] ?? [], cuts, manualBoxes[affectedPageId] ?? [])
       }
     },
     [pages, dividers, manualBoxes, recomputeSegments]
@@ -190,13 +191,14 @@ export function useCropData(paperId: number): {
   )
 
   const undoLastManualBox = useCallback(
-    async (pageId: number) => {
-      await window.api.undoLastManualBox(pageId)
-      const boxes = await window.api.listManualBoxes(pageId)
-      setManualBoxes((m) => ({ ...m, [pageId]: boxes }))
-      const page = pages.find((p) => p.id === pageId)
+    async (paperId: number) => {
+      const affectedPageId = await window.api.undoLastManualBox(paperId)
+      if (affectedPageId == null) return // 没有框可撤
+      const boxes = await window.api.listManualBoxes(affectedPageId)
+      setManualBoxes((m) => ({ ...m, [affectedPageId]: boxes }))
+      const page = pages.find((p) => p.id === affectedPageId)
       if (page) {
-        await recomputeSegments(page, dividers[pageId] ?? [], cutLines[pageId] ?? [], boxes)
+        await recomputeSegments(page, dividers[affectedPageId] ?? [], cutLines[affectedPageId] ?? [], boxes)
       }
     },
     [pages, dividers, cutLines, recomputeSegments]

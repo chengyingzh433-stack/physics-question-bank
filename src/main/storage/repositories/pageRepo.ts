@@ -51,16 +51,16 @@ export function addCutLine(db: DB, pageId: number, colIndex: number, yRatio: num
   return Number(r.lastInsertRowid)
 }
 
-/** 撤销最近一刀（按 created_seq 最大）。返回被删的 id 或 null。 */
-export function undoLastCutLine(db: DB, pageId: number): number | null {
+/** 撤销最近一刀（按全局 created_seq 最大，跨所有页）。返回被删刀所在的 page_id 或 null。 */
+export function undoLastCutLine(db: DB, paperId: number): number | null {
   const last = db
     .prepare(
-      `SELECT id FROM cut_lines WHERE page_id = ? ORDER BY created_seq DESC LIMIT 1`
+      `SELECT id, page_id FROM cut_lines WHERE paper_id = ? ORDER BY created_seq DESC LIMIT 1`
     )
-    .get(pageId) as { id: number } | undefined
+    .get(paperId) as { id: number; page_id: number } | undefined
   if (!last) return null
   db.prepare(`DELETE FROM cut_lines WHERE id = ?`).run(last.id)
-  return last.id
+  return last.page_id
 }
 
 /** 删除指定横切线。 */
@@ -105,16 +105,16 @@ export function deleteManualBox(db: DB, boxId: number): void {
   db.prepare(`DELETE FROM manual_boxes WHERE id = ?`).run(boxId)
 }
 
-/** 撤销最近一个手画框（按 created_seq 最大）。返回被删的 id 或 null。 */
-export function undoLastManualBox(db: DB, pageId: number): number | null {
+/** 撤销最近一个手画框（按全局 created_seq 最大，跨所有页）。返回被删框所在的 page_id 或 null。 */
+export function undoLastManualBox(db: DB, paperId: number): number | null {
   const last = db
     .prepare(
-      `SELECT id FROM manual_boxes WHERE page_id = ? ORDER BY created_seq DESC LIMIT 1`
+      `SELECT id, page_id FROM manual_boxes WHERE paper_id = ? ORDER BY created_seq DESC LIMIT 1`
     )
-    .get(pageId) as { id: number } | undefined
+    .get(paperId) as { id: number; page_id: number } | undefined
   if (!last) return null
   db.prepare(`DELETE FROM manual_boxes WHERE id = ?`).run(last.id)
-  return last.id
+  return last.page_id
 }
 
 // ---- 页查询（复用 paperRepo 已有，这里只补按 id 取单页）----

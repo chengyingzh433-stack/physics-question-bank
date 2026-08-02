@@ -107,8 +107,7 @@ function CropView(): React.JSX.Element | null {
             <ActionIcon
               variant="subtle"
               color="orange"
-              disabled={!activePage}
-              onClick={() => activePage && crop.undoLastCutLine(activePage.id)}
+              onClick={() => crop.undoLastCutLine(pid)}
             >
               <IconArrowBackUp size={18} />
             </ActionIcon>
@@ -117,8 +116,7 @@ function CropView(): React.JSX.Element | null {
             <ActionIcon
               variant="subtle"
               color="violet"
-              disabled={!activePage}
-              onClick={() => activePage && crop.undoLastManualBox(activePage.id)}
+              onClick={() => crop.undoLastManualBox(pid)}
             >
               <IconSquare size={18} />
             </ActionIcon>

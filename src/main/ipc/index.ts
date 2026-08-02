@@ -134,8 +134,8 @@ export function registerIpc(): void {
     return pageRepo.addCutLine(getDb(), pageId, colIndex, yRatio)
   })
 
-  ipcMain.handle('cutlines:undo', (_e, pageId: number) => {
-    return pageRepo.undoLastCutLine(getDb(), pageId)
+  ipcMain.handle('cutlines:undo', (_e, paperId: number) => {
+    return pageRepo.undoLastCutLine(getDb(), paperId)
   })
 
   ipcMain.handle('cutlines:delete', (_e, cutLineId: number) => {
@@ -158,8 +158,8 @@ export function registerIpc(): void {
     pageRepo.deleteManualBox(getDb(), boxId)
   })
 
-  ipcMain.handle('manualboxes:undo', (_e, pageId: number) => {
-    return pageRepo.undoLastManualBox(getDb(), pageId)
+  ipcMain.handle('manualboxes:undo', (_e, paperId: number) => {
+    return pageRepo.undoLastManualBox(getDb(), paperId)
   })
 
   // ---- segments ----

@@ -23,14 +23,14 @@ const api: Api = {
   replaceDividers: (pageId, xRatios) => ipcRenderer.invoke('dividers:replace', pageId, xRatios),
   listCutLines: (pageId) => ipcRenderer.invoke('cutlines:list', pageId),
   addCutLine: (pageId, colIndex, yRatio) => ipcRenderer.invoke('cutlines:add', pageId, colIndex, yRatio),
-  undoLastCutLine: (pageId) => ipcRenderer.invoke('cutlines:undo', pageId),
+  undoLastCutLine: (paperId) => ipcRenderer.invoke('cutlines:undo', paperId),
   deleteCutLine: (cutLineId) => ipcRenderer.invoke('cutlines:delete', cutLineId),
   // manual boxes
   listManualBoxes: (pageId) => ipcRenderer.invoke('manualboxes:list', pageId),
   addManualBox: (pageId, paperId, x0, y0, x1, y1, isExcluded) =>
     ipcRenderer.invoke('manualboxes:add', pageId, paperId, x0, y0, x1, y1, isExcluded),
   deleteManualBox: (boxId) => ipcRenderer.invoke('manualboxes:delete', boxId),
-  undoLastManualBox: (pageId) => ipcRenderer.invoke('manualboxes:undo', pageId),
+  undoLastManualBox: (paperId) => ipcRenderer.invoke('manualboxes:undo', paperId),
   // segments
   getSegmentsByPage: (pageId) => ipcRenderer.invoke('segments:byPage', pageId),
   getSegmentsByPaper: (paperId) => ipcRenderer.invoke('segments:byPaper', paperId),
