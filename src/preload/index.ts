@@ -102,6 +102,7 @@ const api: Api = {
   removeFromSet: (itemId) => ipcRenderer.invoke('sets:remove', itemId),
   updateSetItem: (itemId, fields) => ipcRenderer.invoke('sets:updateItem', itemId, fields),
   exportBasketPdf: (setId, title, answerMode) => ipcRenderer.invoke('export:basket', setId, title, answerMode),
+  exportBasketPptx: (setId, title, answerMode) => ipcRenderer.invoke('export:basketPptx', setId, title, answerMode),
   backupDatabase: () => ipcRenderer.invoke('db:backup'),
   getSetting: (key, defaultValue) => ipcRenderer.invoke('settings:get', key, defaultValue),
   setSetting: (key, value) => ipcRenderer.invoke('settings:set', key, value),

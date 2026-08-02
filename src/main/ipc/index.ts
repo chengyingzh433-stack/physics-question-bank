@@ -383,6 +383,13 @@ export function registerIpc(): void {
     }
   )
 
+  ipcMain.handle(
+    'export:basketPptx',
+    async (_e, setId: number, title: string, answerMode?: 'none' | 'append' | 'inline') => {
+      return exportService.exportBasketPptx(setId, title, answerMode ?? 'none')
+    }
+  )
+
   // ---- db 维护（M12-2）----
   /** 备份数据库：弹保存框 → better-sqlite3 的 backup()（安全处理 WAL，避免裸 copy 读到半写状态）。
    *  返回保存路径，用户取消返回 null。 */

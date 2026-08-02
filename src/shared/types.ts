@@ -197,6 +197,8 @@ export interface Api {
   ): Promise<void>
   /** M14: answerMode 控制答案包含方式（'none'=不含/默认，'append'=末尾参考答案区，'inline'=每题后紧跟）。 */
   exportBasketPdf(setId: number, title: string, answerMode?: 'none' | 'append' | 'inline'): Promise<string | null>
+  /** M16: 导出组卷篮为 PowerPoint（.pptx），每题一页。 */
+  exportBasketPptx(setId: number, title: string, answerMode?: 'none' | 'append' | 'inline'): Promise<string | null>
 
   /** 备份数据库到用户选定路径（M12-2）。返回保存路径，取消返回 null。 */
   backupDatabase(): Promise<string | null>

@@ -227,6 +227,9 @@ export async function exportBasketPdf(
 
 void EXPORT_DPI // R7 集中定义（导出图已按 300DPI 生成，此处仅引用常量）
 
+// M16: PPT 导出（独立文件）
+export { exportBasketPptx } from './ExportServicePpt'
+
 /**
  * 在 PDF 中绘制一张答案图（编号 + 图），内部辅助函数（M14）。
  * 因 pdf-lib 无法在闭包里修改原始 page/y 变量，通过 getter/setter 传入。

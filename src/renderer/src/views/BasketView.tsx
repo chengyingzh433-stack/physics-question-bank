@@ -14,7 +14,7 @@ import {
   Select
 } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconArrowUp, IconArrowDown, IconTrash, IconFileExport } from '@tabler/icons-react'
+import { IconArrowUp, IconArrowDown, IconTrash, IconFileExport, IconFileTypePpt } from '@tabler/icons-react'
 import type { BankQuestionDTO, PaperSetItemDTO } from '@shared/types'
 import { EmptyState } from '../components/EmptyState'
 import { IconClipboardList } from '@tabler/icons-react'
@@ -77,6 +77,21 @@ function BasketView(): React.JSX.Element {
       }
     } catch (e) {
       notifications.show({ title: '导出失败', message: String(e), color: 'red' })
+    } finally {
+      setBusy(false)
+    }
+  }, [exportTitle, answerMode])
+
+  const handleExportPptx = useCallback(async () => {
+    setBusy(true)
+    try {
+      const sid = await window.api.getOrCreateDraftSet()
+      const path = await window.api.exportBasketPptx(sid, exportTitle, answerMode)
+      if (path) {
+        notifications.show({ title: 'PPT 导出成功', message: path, color: 'green' })
+      }
+    } catch (e) {
+      notifications.show({ title: 'PPT 导出失败', message: String(e), color: 'red' })
     } finally {
       setBusy(false)
     }
@@ -207,6 +222,16 @@ function BasketView(): React.JSX.Element {
               mt="lg"
             >
               导出 PDF
+            </Button>
+            <Button
+              color="orange"
+              leftSection={<IconFileTypePpt size={16} />}
+              onClick={handleExportPptx}
+              loading={busy}
+              disabled={items.length === 0}
+              mt="lg"
+            >
+              导出 PPT
             </Button>
           </Group>
         </Paper>
