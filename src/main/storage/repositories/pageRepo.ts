@@ -53,7 +53,6 @@ export function addCutLine(db: DB, pageId: number, colIndex: number, yRatio: num
 
 /** 撤销最近一刀（按全局 id 最大，跨所有页）。返回被删刀所在的 page_id 或 null。 */
 export function undoLastCutLine(db: DB, paperId: number): number | null {
-  console.log('[undoLastCutLine] paperId =', paperId)
   const last = db
     .prepare(
       `SELECT c.id, c.page_id
@@ -64,10 +63,8 @@ export function undoLastCutLine(db: DB, paperId: number): number | null {
        LIMIT 1`
     )
     .get(paperId) as { id: number; page_id: number } | undefined
-  console.log('[undoLastCutLine] last =', last)
   if (!last) return null
   db.prepare(`DELETE FROM cut_lines WHERE id = ?`).run(last.id)
-  console.log('[undoLastCutLine] deleted id =', last.id, ', returning page_id =', last.page_id)
   return last.page_id
 }
 

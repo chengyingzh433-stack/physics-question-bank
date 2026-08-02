@@ -137,12 +137,9 @@ export function useCropData(paperId: number): {
 
   const undoLastCutLine = useCallback(
     async (paperId: number) => {
-      console.log('[useCropData.undoLastCutLine] paperId =', paperId)
       const affectedPageId = await window.api.undoLastCutLine(paperId)
-      console.log('[useCropData.undoLastCutLine] affectedPageId =', affectedPageId)
       if (affectedPageId == null) return // 没有刀可撤
       const cuts = await window.api.listCutLines(affectedPageId)
-      console.log('[useCropData.undoLastCutLine] reloaded cuts =', cuts)
       setCutLines((m) => ({ ...m, [affectedPageId]: cuts }))
       const page = pages.find((p) => p.id === affectedPageId)
       if (page) {
