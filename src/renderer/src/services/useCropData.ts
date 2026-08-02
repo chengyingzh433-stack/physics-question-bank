@@ -24,11 +24,11 @@ export function useCropData(paperId: number): {
   setColumnMode: (pageId: number, mode: number) => Promise<void>
   replaceDividers: (pageId: number, xRatios: number[]) => Promise<void>
   addCutLine: (pageId: number, colIndex: number, yRatio: number) => Promise<void>
-  undoLastCutLine: (pageId: number) => Promise<void>
+  undoLastCutLine: (paperId: number) => Promise<void>
   deleteCutLine: (cutLineId: number, pageId: number) => Promise<void>
   addManualBox: (pageId: number, x0: number, y0: number, x1: number, y1: number, isExcluded: number) => Promise<void>
   deleteManualBox: (boxId: number, pageId: number) => Promise<void>
-  undoLastManualBox: (pageId: number) => Promise<void>
+  undoLastManualBox: (paperId: number) => Promise<void>
   reloadPage: (pageId: number) => Promise<void>
 } {
   const [paper, setPaper] = useState<PaperDTO | null>(null)
@@ -137,9 +137,12 @@ export function useCropData(paperId: number): {
 
   const undoLastCutLine = useCallback(
     async (paperId: number) => {
+      console.log('[useCropData.undoLastCutLine] paperId =', paperId)
       const affectedPageId = await window.api.undoLastCutLine(paperId)
+      console.log('[useCropData.undoLastCutLine] affectedPageId =', affectedPageId)
       if (affectedPageId == null) return // 没有刀可撤
       const cuts = await window.api.listCutLines(affectedPageId)
+      console.log('[useCropData.undoLastCutLine] reloaded cuts =', cuts)
       setCutLines((m) => ({ ...m, [affectedPageId]: cuts }))
       const page = pages.find((p) => p.id === affectedPageId)
       if (page) {
