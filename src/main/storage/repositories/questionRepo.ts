@@ -290,3 +290,39 @@ export function updateQuestionSourceOverride(
   params.push(new Date().toISOString(), questionId)
   db.prepare(`UPDATE questions SET ${sets.join(', ')} WHERE id = ?`).run(...params)
 }
+
+/**
+ * M17: 批量获取多个题目的知识点（避免 N+1 查询）。
+ * 返回 Map<questionId, KnowledgePointDTO[]>。
+ */
+export function batchGetQuestionKnowledgePoints(
+  db: DB,
+  questionIds: number[]
+): Map<number, { id: number; name: string; created_at: string; updated_at: string }[]> {
+  if (questionIds.length === 0) return new Map()
+  const placeholders = questionIds.map(() => '?').join(',')
+  const rows = db
+    .prepare(
+      `SELECT qkp.question_id, kp.id, kp.name, kp.created_at, kp.updated_at
+       FROM question_knowledge_points qkp
+       JOIN knowledge_points kp ON qkp.kp_id = kp.id
+       WHERE qkp.question_id IN (${placeholders})
+       ORDER BY qkp.question_id, kp.name`
+    )
+    .all(...questionIds) as Array<{
+    question_id: number
+    id: number
+    name: string
+    created_at: string
+    updated_at: string
+  }>
+
+  const map = new Map<number, { id: number; name: string; created_at: string; updated_at: string }[]>()
+  for (const row of rows) {
+    const qid = row.question_id
+    if (!map.has(qid)) map.set(qid, [])
+    const { question_id, ...kp } = row
+    map.get(qid)!.push(kp)
+  }
+  return map
+}

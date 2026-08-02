@@ -335,6 +335,9 @@ export function registerIpc(): void {
   ipcMain.handle('questions:getKps', (_e, qid: number) =>
     tagRepo.getQuestionKnowledgePoints(getDb(), qid)
   )
+  ipcMain.handle('questions:batchKps', (_e, qids: number[]) =>
+    questionRepo.batchGetQuestionKnowledgePoints(getDb(), qids)
+  )
 
   // ---- bank ----
   ipcMain.handle('bank:list', (_e, criteria: QuestionFilterCriteria) => {

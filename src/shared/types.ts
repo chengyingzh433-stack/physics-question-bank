@@ -177,6 +177,8 @@ export interface Api {
   setQuestionDifficulty(questionId: number, difficultyId: number | null): Promise<void>
   setQuestionKnowledgePoints(questionId: number, kpIds: number[]): Promise<void>
   getQuestionKnowledgePoints(questionId: number): Promise<number[]>
+  /** M17: 批量获取多个题目的知识点 ID（避免 N+1 查询）。返回 Map<questionId, kpIds[]>。 */
+  batchQuestionKnowledgePoints(questionIds: number[]): Promise<Map<number, number[]>>
   // bank
   listBankQuestions(criteria: QuestionFilterCriteria): Promise<BankQuestionDTO[]>
   /** 题库筛选可选的年份/出处清单（M13，distinct 按 effective 口径）。 */

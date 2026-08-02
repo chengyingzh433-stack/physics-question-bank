@@ -91,6 +91,7 @@ const api: Api = {
   setQuestionDifficulty: (qid, did) => ipcRenderer.invoke('questions:setDifficulty', qid, did),
   setQuestionKnowledgePoints: (qid, kpIds) => ipcRenderer.invoke('questions:setKps', qid, kpIds),
   getQuestionKnowledgePoints: (qid) => ipcRenderer.invoke('questions:getKps', qid),
+  batchQuestionKnowledgePoints: (qids) => ipcRenderer.invoke('questions:batchKps', qids),
   // bank
   listBankQuestions: (criteria) => ipcRenderer.invoke('bank:list', criteria),
   listYearSources: () => ipcRenderer.invoke('bank:listYearSources'),

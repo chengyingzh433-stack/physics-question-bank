@@ -203,9 +203,12 @@ function PostProcessView(): React.JSX.Element | null {
     setChapters(chs)
     setKps(kpsList)
     setDiffs(dfs)
+    // M17: 批量查询知识点（避免 N+1）
+    const qids = qs.map((q) => q.id)
+    const kpMap = await window.api.batchQuestionKnowledgePoints(qids)
     const kpsMap: Record<number, Set<number>> = {}
     for (const q of qs) {
-      kpsMap[q.id] = new Set(await window.api.getQuestionKnowledgePoints(q.id))
+      kpsMap[q.id] = new Set(kpMap.get(q.id) || [])
     }
     setQKps(kpsMap)
   }, [pid])
