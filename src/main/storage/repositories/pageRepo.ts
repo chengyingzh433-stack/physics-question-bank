@@ -55,7 +55,12 @@ export function addCutLine(db: DB, pageId: number, colIndex: number, yRatio: num
 export function undoLastCutLine(db: DB, paperId: number): number | null {
   const last = db
     .prepare(
-      `SELECT id, page_id FROM cut_lines WHERE paper_id = ? ORDER BY created_seq DESC LIMIT 1`
+      `SELECT c.id, c.page_id
+       FROM cut_lines c
+       JOIN pages p ON c.page_id = p.id
+       WHERE p.paper_id = ?
+       ORDER BY c.created_seq DESC
+       LIMIT 1`
     )
     .get(paperId) as { id: number; page_id: number } | undefined
   if (!last) return null

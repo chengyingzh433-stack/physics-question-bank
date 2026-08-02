@@ -358,20 +358,33 @@ function AnswerMatchView(): React.JSX.Element | null {
     return (
       <Stack p="xl" gap="md" align="center" maw={480} mx="auto" mt="xl">
         <IconFileImport size={56} stroke={1.2} color="var(--mantine-color-violet-5)" />
-        <Text size="xl" fw={600}>导入答案 PDF</Text>
+        <Text size="xl" fw={600}>导入答案 PDF（可选）</Text>
         <Text size="sm" c="dimmed" ta="center">
           为《{paper.name}》导入对应的答案 PDF。答案将按题号自动匹配，支持手动调整。
         </Text>
+        <Text size="xs" c="dimmed" ta="center">
+          如果暂时没有答案，可以稍后再匹配或直接完成入库。
+        </Text>
         {error && <Alert color="red" w="100%">{error}</Alert>}
-        <Button
-          leftSection={<IconFileImport size={16} />}
-          onClick={handleImportAnswer}
-          loading={importing}
-          color="violet"
-          size="md"
-        >
-          选择答案 PDF
-        </Button>
+        <Group>
+          <Button
+            leftSection={<IconFileImport size={16} />}
+            onClick={handleImportAnswer}
+            loading={importing}
+            color="violet"
+            size="md"
+          >
+            选择答案 PDF
+          </Button>
+          <Button
+            variant="light"
+            component={Link}
+            to="/"
+            size="md"
+          >
+            稍后再匹配
+          </Button>
+        </Group>
         <Button variant="subtle" component={Link} to={`/post/${pid}`} leftSection={<IconArrowLeft size={14} />}>
           返回后期处理
         </Button>
