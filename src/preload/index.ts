@@ -2,6 +2,17 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { Api } from '../shared/types'
 
 const api: Api = {
+  getEditableQuestion: (id) => ipcRenderer.invoke('editable:get', id),
+  saveQuestionContent: (id, content, expectedRevision) => ipcRenderer.invoke('editable:save', id, content, expectedRevision),
+  listContentRevisions: (id) => ipcRenderer.invoke('editable:revisions', id),
+  getContentRevision: (id, revision) => ipcRenderer.invoke('editable:revision', id, revision),
+  restoreContentRevision: (id, revision, expectedRevision) => ipcRenderer.invoke('editable:restore', id, revision, expectedRevision),
+  importQuestionAsset: (id) => ipcRenderer.invoke('editable:importAsset', id),
+  saveQuestionAsset: (id, data, name) => ipcRenderer.invoke('editable:saveAsset', id, data, name),
+  exportBasketDocx: (setId, options) => ipcRenderer.invoke('export:basketDocx', setId, options),
+  getWordExportOptions: (setId) => ipcRenderer.invoke('export:wordOptions', setId),
+  saveWordExportOptions: (setId, options) => ipcRenderer.invoke('export:saveWordOptions', setId, options),
+  reorderBasketItems: (setId, itemIds) => ipcRenderer.invoke('sets:reorder', setId, itemIds),
   getAppVersion: () => ipcRenderer.invoke('app:version'),
   ping: () => ipcRenderer.invoke('app:ping'),
   // papers

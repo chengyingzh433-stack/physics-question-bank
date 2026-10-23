@@ -15,10 +15,14 @@ import * as answerPairingRepo from '../storage/repositories/answerPairingRepo'
 import * as exportService from '../export/ExportService'
 import * as fileService from '../files/FileService'
 import { importPaperFromPath } from '../files/importPaper'
+import { registerEditableIpc } from './editable'
+import { registerWordIpc } from './word'
 import type { AnswerBindingDTO, NewPageDTO, SegmentDTO, QuestionFilterCriteria } from '../../shared/types'
 
 /** 注册所有 IPC handler。在 app.whenReady 后调用一次。 */
 export function registerIpc(): void {
+  registerEditableIpc()
+  registerWordIpc()
   // ---- app ----
   ipcMain.handle('app:ping', () => 'pong')
   ipcMain.handle('app:version', () => app.getVersion())

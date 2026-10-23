@@ -1,12 +1,12 @@
 # 教师题库管理系统
 
-面向教师个人积累与复用好题的桌面工具，当前 Mac 测试版：**1.1.0-beta.4**；Windows 已验证版本：**1.1.0-beta.3**。
+面向教师个人积累与复用好题的桌面工具，当前 Mac 人工验收版：**1.1.0-beta.5**；Windows 已验证版本：**1.1.0-beta.3**。
 
 ## 下载与使用
 
 从 [GitHub Releases](https://github.com/chengyingzh433-stack/physics-question-bank/releases) 下载对应平台的文件。Mac（Apple Silicon，M 系列）下载 `mac-arm64.dmg`，打开后将应用拖入“应用程序”；Windows 下载 beta.3 的 EXE 安装程序。日常使用无需命令行或 Node.js。
 
-Mac 版尚无 Apple Developer ID 签名和公证，是本机验证过的测试构建；下载后可能需要系统的开发者信任确认。Intel Mac 未验证，本轮不提供 Intel 安装包。
+Mac 版尚无 Apple Developer ID 签名和公证，本版仅完成静态检查与构建，功能验收由用户执行；下载后可能需要系统的开发者信任确认。Intel Mac 未验证，本轮不提供 Intel 安装包。
 
 资料默认保存在 Windows 的 `%APPDATA%/physics-question-bank` 或 Mac 的 `~/Library/Application Support/physics-question-bank`；原 PDF 与题图的存储位置可在应用设置查看。仓库和安装程序不包含个人题库资料。
 
@@ -17,13 +17,15 @@ Mac 版尚无 Apple Developer ID 签名和公证，是本机验证过的测试�
 - 个人题夹、资料及标签检索、组合筛选、批量归类、选题入篮、题目与答案预览。
 - 人教版（2019）高中物理六册章节模板，支持自定义章节及子章节；按上级章节筛选时包含下级题目。
 - 知识点搜索多选，输入前几个字显示匹配候选，也可新建并选中。
-- 组卷题序、标题和答案位置设置，导出 PDF 或 PPTX。
+- 题干/答案对照编辑、可视公式、本地配图与原图裁取、图片缩放、保存及历史恢复。
+- Word 组卷：原图与编辑内容混排、自定义题号、分组标题、页边距、题后留白和答案位置；公式以 Word 原生公式输出。
+- 原图 PDF / PPTX 导出继续保留。
 
-扫描 PDF 当前以题图保留。文字与公式编辑、图片独立调整和 Word 导出排在后续阶段，尚未实现。章节预设按公开教材目录核对，尚未与学科网页面逐项对照。
+扫描 PDF 仍以题图保留；可编辑稿当前手动输入或粘贴，尚未接入 OCR、Word 导入或表格编辑。新功能入口和验收项目见 [M18 使用说明](docs/superpowers/specs/2026-10-24-editable-word-guide.md)。章节预设按公开教材目录核对，尚未与学科网页面逐项对照。
 
-## 开发与验证
+## 开发与交付
 
-技术栈：Electron 44.9.3、React 18、TypeScript、Mantine 7、SQLite、pdfjs、pdf-lib、pptxgenjs。开发使用 Node.js 24（见 `.nvmrc`），Mac 编译原生模块需安装 Xcode Command Line Tools。
+技术栈：Electron 44.9.3、React 18、TypeScript、Mantine 7、SQLite、pdfjs、pdf-lib、pptxgenjs，以及 Tiptap / MathLive / docx.js。开发使用 Node.js 24（见 `.nvmrc`），Mac 编译原生模块需安装 Xcode Command Line Tools。
 
 ```sh
 npm ci
@@ -31,26 +33,22 @@ npm run rebuild
 npm run dev
 ```
 
-首次安装后执行 `npm run rebuild`，显式下载 Electron 运行文件并准备原生依赖，避免并行测试首次启动时竞争下载。当前 better-sqlite3 13 使用 Node-API 预编译模块；实际可用性以 SQLite 测试和打包程序加载为准。构建检查与打包：
+首次安装后执行 `npm run rebuild`，下载 Electron 运行文件并准备原生依赖。当前 better-sqlite3 13 使用 Node-API 预编译模块。
+
+**按用户指定准则：不编写、不运行冒烟测试或自动功能测试；功能验收由用户完成。** 开发者负责实现、静态审查、类型检查、编译与安装包交付，详见 [AGENTS.md](AGENTS.md)。构建与打包：
 
 ```sh
 npm run typecheck
-npm test
 npm run build
-npm run test:bank-ui
-npm run test:chapters-ui
-npm run test:answers-ui
 # Windows 发布构建在 Windows 上执行
 npm run dist
 # Mac：生成 Apple Silicon .app 与 DMG，输出到 release/<版本>/
 npm run dist:mac
-# 根据当前平台检查上述打包产物
-npm run test:packaged
 ```
 
-Windows 发布产物位于 `release/<版本>/`。安装程序上传到 Releases，`node_modules`、构建目录和本机快捷方式不进入源码仓库。GUI 与发布程序检查使用隔离的临时数据，不能替代用户真实资料验收。
+Windows 发布产物位于 `release/<版本>/`。安装程序上传到 Releases，`node_modules`、构建目录和本机快捷方式不进入源码仓库。仓库保留历史测试脚本，本阶段没有新增或运行；请勿将 beta.4 的历史结果当作 beta.5 功能验收。
 
-Mac beta.4 已通过类型检查、114 项自动测试及三套界面回归；修复了 Electron 启动、PDF 协议读取、知识点下拉布局、旋转页出图和手动答案配对持久化。初次接手时 Electron 31 的拦截记录保留在[接手验证记录](docs/superpowers/specs/2026-10-23-mac-takeover-validation.md)，最新验证及发布边界见 [Mac beta.4 交付记录](docs/superpowers/specs/2026-10-23-mac-beta4-release.md)。
+**历史记录：** Mac beta.4 已通过类型检查、114 项自动测试及三套界面回归；修复了 Electron 启动、PDF 协议读取、知识点下拉布局、旋转页出图和手动答案配对持久化。初次接手时 Electron 31 的拦截记录保留在[接手验证记录](docs/superpowers/specs/2026-10-23-mac-takeover-validation.md)，最新验证及发布边界见 [Mac beta.4 交付记录](docs/superpowers/specs/2026-10-23-mac-beta4-release.md)。
 
 Windows beta.3 的 99 项测试、GUI 和 EXE 验证是历史基线。升级后的 beta.4 尚未在 Windows 复测，Windows 的 `.bat`、`.vbs` 入口不用于 Mac。真实 Windows 题库资料尚未迁移。
 
@@ -58,9 +56,13 @@ Windows beta.3 的 99 项测试、GUI 和 EXE 验证是历史基线。升级后�
 
 文档中确实记录了 **Doc2X 教师题库**：参考其导入、分类检索、选题组卷和导出流程，详见[模块对照](docs/superpowers/specs/2026-10-22-bank-experience-design.md)和[可编辑题目调研](docs/superpowers/specs/2026-10-22-editable-question-solutions-research.md)。官方[教师题库教程](https://doc2x.noedgeai.com/help/en/tutorials/teacher-question-bank.html)介绍的是独立 Web 应用；公开的 [doc2x-mcp 仓库](https://github.com/NoEdgeAI/doc2x-mcp)是 MCP 接入工具，不能据此认定整套教师题库产品开源。
 
-本仓库目前用 React/Mantine/SQLite 自行实现相关功能，源码和依赖中未接入 Doc2X SDK、API 或识别模型。Doc2X 属于产品参考及云识别候选；MinerU、PaddleOCR、Pix2Text 是调研中的本地识别候选，均尚未集成。后续继续借鉴公开操作流程，并单独评估识别和可编辑导出能力。
+本仓库未接入 Doc2X SDK、API 或识别模型，Doc2X 属于产品参考及云识别候选。本轮编辑能力复用 Tiptap / MathLive，Word 导出复用 docx.js / mathml2omml，均在本机工作；选型与边界见 [M18 方案](docs/superpowers/plans/2026-10-24-editable-word-plan.md)。MinerU、PaddleOCR、Pix2Text 仍是后续识别候选。第三方许可及 mathml2omml 对应源码随安装包提供，见 [组件说明](resources/third-party-licenses/README.txt)。
 
 ## 开发记录
+
+- [M18 开发方案与后续计划](docs/superpowers/plans/2026-10-24-editable-word-plan.md)
+- [M18 交付记录](docs/superpowers/specs/2026-10-24-editable-word-delivery.md)
+- [M18 操作说明与用户验收清单](docs/superpowers/specs/2026-10-24-editable-word-guide.md)
 
 - [Mac beta.4 交付与验证](docs/superpowers/specs/2026-10-23-mac-beta4-release.md)
 

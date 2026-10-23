@@ -1,6 +1,6 @@
 {
   "name": "physics-question-bank",
-  "version": "1.1.0-beta.4",
+  "version": "1.1.0-beta.5",
   "description": "物理教师题库管理系统",
   "main": "./out/main/index.js",
   "author": "cyz",
@@ -32,11 +32,19 @@
     "@mantine/notifications": "^7.17.8",
     "@pdf-lib/fontkit": "^1.1.1",
     "@tabler/icons-react": "^3.44.0",
+    "@tiptap/core": "3.32.0",
+    "@tiptap/pm": "3.32.0",
+    "@tiptap/react": "3.32.0",
+    "@tiptap/starter-kit": "3.32.0",
     "better-sqlite3": "13.0.3",
+    "docx": "9.14.0",
+    "mathlive": "0.111.1",
+    "mathml2omml": "0.5.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
     "pptxgenjs": "^3.12.0",
-    "react-router-dom": "^7.18.1"
+    "react-router-dom": "^7.18.1",
+    "saxes": "6.0.0"
   },
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.1",

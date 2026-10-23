@@ -3,6 +3,7 @@ import { app } from 'electron'
 import { join } from 'path'
 import { SCHEMA_V1, BUILTIN_TYPES, BUILTIN_DIFFICULTIES } from './schema'
 import { initializeChapterTemplates } from './chapterTemplates'
+import { initializeContentStorage } from './repositories/contentRepo'
 
 export type DB = Database.Database
 
@@ -98,6 +99,7 @@ export function initDatabase(): void {
   if (!questionCols.some((c) => c.name === 'answer_height_px')) {
     db.exec('ALTER TABLE questions ADD COLUMN answer_height_px INTEGER')
   }
+  initializeContentStorage(db)
 }
 
 /** 仅测试/关闭时使用。 */

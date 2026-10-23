@@ -13,9 +13,14 @@
     "package.json"
   ],
   "asarUnpack": [
-    "node_modules/better-sqlite3/**/*"
+    "node_modules/better-sqlite3/**/*",
+    "node_modules/mathml2omml/**/*"
   ],
   "extraResources": [
+    {
+      "from": "resources/third-party-licenses",
+      "to": "third-party-licenses"
+    },
     {
       "from": "src/renderer/src/assets/fonts/NotoSansSC-Regular.ttf",
       "to": "fonts/NotoSansSC-Regular.ttf"

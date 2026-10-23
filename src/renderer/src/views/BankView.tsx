@@ -252,6 +252,8 @@ function BankView(): React.JSX.Element {
               <Text size="sm" fw={500} mt="xs" lineClamp={1} title={q.paper_name}>{q.paper_name}</Text>
               <Text size="xs" c="dimmed">第 {q.order_in_paper ?? '—'} 题 · {labelFor(types, q.type_id) || '未标题型'}</Text>
               <Text size="xs" c="dimmed" lineClamp={1} mih={18}>{[q.effective_year, q.effective_source].filter(Boolean).join(' · ')}</Text>
+              <Button size="xs" fullWidth mt="sm" variant="light" disabled={busy}
+                onClick={() => navigate(`/questions/${q.id}/edit?from=/bank`)}>编辑题目与答案</Button>
               <Button size="xs" fullWidth mt="sm" variant={inBasket.has(q.id) ? 'light' : 'default'}
                 disabled={busy || draftSetId == null} onClick={() => toggleBasket(q.id)}>
                 {inBasket.has(q.id) ? '已入篮 · 点击移出' : '加入组卷篮'}

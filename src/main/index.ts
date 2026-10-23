@@ -27,6 +27,16 @@ function createWindow(): void {
 
   mainWindow.on('page-title-updated', (event) => event.preventDefault())
 
+  mainWindow.webContents.on('will-prevent-unload', (event) => {
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'question', title: '还有未保存的修改',
+      message: '当前修改尚未保存。', detail: '选择继续编辑以保存内容，或放弃本次修改并离开。',
+      buttons: ['继续编辑', '放弃修改并离开'], defaultId: 0, cancelId: 0, noLink: true
+    })
+    // Electron 中 preventDefault 表示允许这次离开，默认仍留在编辑页。
+    if (choice === 1) event.preventDefault()
+  })
+
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
   })

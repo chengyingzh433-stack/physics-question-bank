@@ -3,6 +3,35 @@ import type { SegmentDTO } from '../../../shared/types'
 import type { QuestionFilterCriteria } from '../questionFilter'
 import { buildQuestionQuery } from '../questionFilter'
 
+const QUESTION_ID_HIGH_WATER = 'internal:question_id_high_water'
+const EDITABLE_CONTENT_PROTECTED = '此题包含可编辑内容与历史版本，不能通过重新合并或取消合并删除。请保留当前编辑题；如需重新裁切，请重新导入原 PDF。'
+
+function hasContentTable(db: DB): boolean {
+  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'question_contents'").get())
+}
+
+/** 旧表不是 AUTOINCREMENT；记录曾用过的最大编号，避免删除末题后复用其 ID。 */
+function rememberHighestQuestionId(db: DB): number {
+  const maximum = db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM questions').get() as { id: number }
+  const saved = db.prepare('SELECT value FROM app_settings WHERE key = ?').get(QUESTION_ID_HIGH_WATER) as { value: string | null } | undefined
+  if (saved && (typeof saved.value !== 'string' || !/^\d+$/.test(saved.value))) {
+    throw new Error('题目编号记录无效，请保留数据库并联系维护者')
+  }
+  const previous = saved ? Number(saved.value) : 0
+  if (!Number.isSafeInteger(previous) || previous < 0 || !Number.isSafeInteger(maximum.id)) {
+    throw new Error('题目编号记录无效，请保留数据库并联系维护者')
+  }
+  const highest = Math.max(previous, maximum.id)
+  db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+    .run(QUESTION_ID_HIGH_WATER, String(highest))
+  return highest
+}
+
+/** 升级时先记录旧库已有的编号；后续删除题目不会降低此值。 */
+export function initializeQuestionIdSequence(db: DB): void {
+  db.transaction(() => { rememberHighestQuestionId(db) })()
+}
+
 /** 题目（含合并信息）的查询结果。 */
 export interface QuestionRow {
   id: number
@@ -121,13 +150,25 @@ export function createQuestionWithSegments(
 ): number {
   const ts = new Date().toISOString()
   const tx = db.transaction(() => {
-    const r = db
+    // 旧合并流程会先建新题、再删除原题；在建新题之前阻止丢失编辑稿和历史。
+    if (segmentIds.length && hasContentTable(db)) {
+      const placeholders = segmentIds.map(() => '?').join(',')
+      const edited = db.prepare(`SELECT 1 FROM question_segments qs
+        JOIN question_contents c ON c.question_id = qs.question_id
+        WHERE qs.segment_id IN (${placeholders}) LIMIT 1`).get(...segmentIds)
+      if (edited) throw new Error(EDITABLE_CONTENT_PROTECTED)
+    }
+    // 同一事务分配编号、写题目、保存裁切关联；任一步失败一起回滚。
+    const highest = rememberHighestQuestionId(db)
+    if (highest >= Number.MAX_SAFE_INTEGER) throw new Error('题目编号已达到上限，无法继续创建')
+    const qid = highest + 1
+    db.prepare('UPDATE app_settings SET value = ? WHERE key = ?').run(String(qid), QUESTION_ID_HIGH_WATER)
+    db
       .prepare(
-        `INSERT INTO questions (paper_id, order_in_paper, is_merged, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?)`
+        `INSERT INTO questions (id, paper_id, order_in_paper, is_merged, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
       )
-      .run(paperId, orderInPaper, segmentIds.length > 1 ? 1 : 0, ts, ts)
-    const qid = Number(r.lastInsertRowid)
+      .run(qid, paperId, orderInPaper, segmentIds.length > 1 ? 1 : 0, ts, ts)
     const insertMap = db.prepare(
       `INSERT INTO question_segments (question_id, segment_id, merge_order) VALUES (?, ?, ?)`
     )
@@ -139,7 +180,13 @@ export function createQuestionWithSegments(
 
 /** 取消合并 / 删除占位题：删 question 行（级联删 question_segments）。 */
 export function deleteQuestion(db: DB, questionId: number): void {
-  db.prepare(`DELETE FROM questions WHERE id = ?`).run(questionId)
+  db.transaction(() => {
+    // 旧撤销链路仅能恢复裁切关联，不能恢复编辑稿；整卷明确删除仍由 paperRepo 处理。
+    if (hasContentTable(db) && db.prepare('SELECT 1 FROM question_contents WHERE question_id = ?').get(questionId)) {
+      throw new Error(EDITABLE_CONTENT_PROTECTED)
+    }
+    db.prepare(`DELETE FROM questions WHERE id = ?`).run(questionId)
+  })()
 }
 
 /** 按 order_in_paper 连续重排某试卷的所有题（1,2,3…）。 */

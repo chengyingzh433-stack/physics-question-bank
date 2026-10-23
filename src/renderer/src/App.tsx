@@ -9,6 +9,7 @@ import PaperReviewView from './views/PaperReviewView'
 import TemplateView from './views/TemplateView'
 import BankView from './views/BankView'
 import BasketView from './views/BasketView'
+import QuestionEditorView from './views/QuestionEditorView'
 
 import AnswerMatchView from './views/AnswerMatchView'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -29,6 +30,7 @@ function App(): React.JSX.Element {
   return (
     <HashRouter>
       <Routes>
+        <Route path="/questions/:questionId/edit" element={<ErrorBoundary><QuestionEditorView /></ErrorBoundary>} />
         {/* 库区:常驻侧边导航 */}
         <Route element={<LibraryLayout />}>
           <Route path="/" element={<ErrorBoundary><HomeView /></ErrorBoundary>} />

@@ -372,13 +372,19 @@ function PostProcessView(): React.JSX.Element | null {
   }, [selected, previewQuestions, pid, reloadAll, pushUndo])
 
   const handleUnmerge = useCallback(async (questionId: number) => {
-    // 取消合并前先抓 segIds（撤销需要）
-    const segs = await window.api.getQuestionSegments(questionId)
-    const segIds = segs.map((s) => s.id!).filter((id) => id !== undefined)
-    await window.api.deleteQuestion(questionId)
-    pushUndo({ type: 'unmerge', pid, segIds })
-    await reloadAll()
-  }, [reloadAll, pid, pushUndo])
+    if (busy) return
+    setBusy(true); setError(null)
+    try {
+      // 取消合并前先抓 segIds（撤销需要）。含编辑历史的题由存储层保护。
+      const segs = await window.api.getQuestionSegments(questionId)
+      const segIds = segs.map((s) => s.id!).filter((id) => id !== undefined)
+      await window.api.deleteQuestion(questionId)
+      pushUndo({ type: 'unmerge', pid, segIds })
+      await reloadAll()
+    } catch (e) {
+      setError('取消合并未完成：' + String(e))
+    } finally { setBusy(false) }
+  }, [busy, reloadAll, pid, pushUndo])
 
   // UX2-2: 撤销执行
   const performUndo = useCallback(async () => {
