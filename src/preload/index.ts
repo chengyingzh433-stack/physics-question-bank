@@ -1,12 +1,18 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { Api } from '../shared/types'
 
 const api: Api = {
+  getAppVersion: () => ipcRenderer.invoke('app:version'),
   ping: () => ipcRenderer.invoke('app:ping'),
   // papers
   listPapers: () => ipcRenderer.invoke('papers:list'),
   getPaper: (id) => ipcRenderer.invoke('papers:get', id),
   importPaper: (name, options) => ipcRenderer.invoke('papers:import', name, options),
+  importDroppedPaper: async (file) => {
+    const path = webUtils.getPathForFile(file)
+    if (!path) throw new Error('无法取得文件位置，请从文件夹拖入 PDF，或使用“导入试卷 PDF”按钮。')
+    return ipcRenderer.invoke('papers:importPath', path)
+  },
   getAnswerPaper: (parentPaperId) => ipcRenderer.invoke('papers:getAnswerPaper', parentPaperId),
   deletePaper: (id) => ipcRenderer.invoke('papers:delete', id),
   updatePaperMeta: (paperId, fields) => ipcRenderer.invoke('papers:updateMeta', paperId, fields),
@@ -77,7 +83,9 @@ const api: Api = {
   deleteRule: (ruleId) => ipcRenderer.invoke('templates:deleteRule', ruleId),
   // tags
   listChapters: () => ipcRenderer.invoke('chapters:list'),
-  createChapter: (name) => ipcRenderer.invoke('chapters:create', name),
+  listChapterTemplates: () => ipcRenderer.invoke('chapterTemplates:list'),
+  installChapterTemplate: (key) => ipcRenderer.invoke('chapterTemplates:install', key),
+  createChapter: (name, parentId) => ipcRenderer.invoke('chapters:create', name, parentId),
   deleteChapter: (id) => ipcRenderer.invoke('chapters:delete', id),
   listKnowledgePoints: () => ipcRenderer.invoke('kps:list'),
   createKnowledgePoint: (name, chapterId) =>
@@ -93,9 +101,17 @@ const api: Api = {
   getQuestionKnowledgePoints: (qid) => ipcRenderer.invoke('questions:getKps', qid),
   batchQuestionKnowledgePoints: (qids) => ipcRenderer.invoke('questions:batchKps', qids),
   // bank
+  listQuestionFolders: () => ipcRenderer.invoke('folders:list'),
+  createQuestionFolder: (name) => ipcRenderer.invoke('folders:create', name),
+  renameQuestionFolder: (id, name) => ipcRenderer.invoke('folders:rename', id, name),
+  deleteQuestionFolder: (id) => ipcRenderer.invoke('folders:delete', id),
+  addQuestionsToFolder: (id, ids) => ipcRenderer.invoke('folders:addQuestions', id, ids),
+  removeQuestionsFromFolder: (id, ids) => ipcRenderer.invoke('folders:removeQuestions', id, ids),
   listBankQuestions: (criteria) => ipcRenderer.invoke('bank:list', criteria),
   listYearSources: () => ipcRenderer.invoke('bank:listYearSources'),
   // basket
+  addManyToSet: (setId, ids) => ipcRenderer.invoke('sets:addMany', setId, ids),
+  removeQuestionFromSet: (setId, questionId) => ipcRenderer.invoke('sets:removeQuestion', setId, questionId),
   getOrCreateDraftSet: () => ipcRenderer.invoke('sets:getDraft'),
   listSetItems: (setId) => ipcRenderer.invoke('sets:listItems', setId),
   listSetQuestionIds: (setId) => ipcRenderer.invoke('sets:listQuestionIds', setId),

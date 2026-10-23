@@ -1,17 +1,8 @@
 // 题库组合筛选查询构造器（纯函数，便于单测）。
 // 条件 AND 组合；知识点命中任一即可。
 
-export interface QuestionFilterCriteria {
-  type_id?: number | null
-  paper_id?: number | null
-  chapter_id?: number | null
-  difficulty_id?: number | null
-  kp_ids?: number[] // 命中任一
-  /** 年份筛选（M13），按 COALESCE(q.year_override, p.year) 口径。 */
-  year?: number | null
-  /** 出处筛选（M13），按 COALESCE(q.source_override, p.source) 口径。 */
-  source?: string | null
-}
+import type { QuestionFilterCriteria } from '../../shared/types'
+export type { QuestionFilterCriteria } from '../../shared/types'
 
 export interface BuiltFilter {
   where: string
@@ -38,7 +29,13 @@ export function buildQuestionFilter(c: QuestionFilterCriteria): BuiltFilter {
     params.push(c.paper_id)
   }
   if (c.chapter_id != null) {
-    conditions.push('q.chapter_id = ?')
+    conditions.push(`q.chapter_id IN (
+      WITH RECURSIVE chapter_descendants(id) AS (
+        SELECT id FROM chapters WHERE id = ?
+        UNION
+        SELECT ch.id FROM chapters ch JOIN chapter_descendants d ON ch.parent_id = d.id
+      ) SELECT id FROM chapter_descendants
+    )`)
     params.push(c.chapter_id)
   }
   if (c.difficulty_id != null) {
@@ -53,7 +50,26 @@ export function buildQuestionFilter(c: QuestionFilterCriteria): BuiltFilter {
     conditions.push('COALESCE(q.source_override, p.source) = ?')
     params.push(c.source)
   }
-  // 知识点走 EXISTS 子查询（见 buildQuestionQuery / listBankQuestions），不进 where 条件
+  if (c.folder_id != null) {
+    conditions.push('EXISTS (SELECT 1 FROM question_folder_items fi WHERE fi.question_id = q.id AND fi.folder_id = ?)')
+    params.push(c.folder_id)
+  }
+  if (c.unfiled) {
+    conditions.push('NOT EXISTS (SELECT 1 FROM question_folder_items fi WHERE fi.question_id = q.id)')
+  }
+  if (c.answer_status === 'with') conditions.push("NULLIF(q.answer_image_path, '') IS NOT NULL")
+  if (c.answer_status === 'without') conditions.push("NULLIF(q.answer_image_path, '') IS NULL")
+  const search = c.search?.trim()
+  if (search) {
+    const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`
+    conditions.push(`(p.name LIKE ? ESCAPE '\\'
+      OR COALESCE(q.source_override, p.source) LIKE ? ESCAPE '\\'
+      OR EXISTS (SELECT 1 FROM question_types t WHERE t.id = q.type_id AND t.name LIKE ? ESCAPE '\\')
+      OR EXISTS (SELECT 1 FROM chapters ch WHERE ch.id = q.chapter_id AND ch.name LIKE ? ESCAPE '\\')
+      OR EXISTS (SELECT 1 FROM question_knowledge_points sk JOIN knowledge_points k ON k.id = sk.kp_id
+        WHERE sk.question_id = q.id AND k.name LIKE ? ESCAPE '\\'))`)
+    params.push(pattern, pattern, pattern, pattern, pattern)
+  }
 
   return {
     where: conditions.join(' AND '),
@@ -62,7 +78,7 @@ export function buildQuestionFilter(c: QuestionFilterCriteria): BuiltFilter {
 }
 
 /** 完整查询 SQL（含 join）。DISTINCT 因为知识点 join 会放大行数。 */
-export function buildQuestionQuery(c: QuestionFilterCriteria): { sql: string; params: (string | number)[] } {
+export function buildQuestionQuery(c: QuestionFilterCriteria, columns = 'q.*'): { sql: string; params: (string | number)[] } {
   let kpJoin = ''
   const kpParams: number[] = []
   if (c.kp_ids && c.kp_ids.length > 0) {
@@ -71,6 +87,7 @@ export function buildQuestionQuery(c: QuestionFilterCriteria): { sql: string; pa
     kpParams.push(...c.kp_ids)
   }
   const { where, params } = buildQuestionFilter(c)
-  const sql = `SELECT DISTINCT q.* FROM questions q JOIN papers p ON p.id = q.paper_id${kpJoin} WHERE ${where} ORDER BY q.paper_id ASC, q.order_in_paper ASC`
-  return { sql, params: [...params, ...kpParams] }
+  const sql = `SELECT DISTINCT ${columns} FROM questions q JOIN papers p ON p.id = q.paper_id${kpJoin} WHERE ${where} ORDER BY q.paper_id ASC, q.order_in_paper ASC, q.id ASC`
+  // JOIN 的占位符位于 WHERE 之前，必须同序绑定。
+  return { sql, params: [...kpParams, ...params] }
 }

@@ -17,6 +17,7 @@ import { notifications } from '@mantine/notifications'
 import { IconArrowUp, IconArrowDown, IconTrash, IconFileExport, IconFileTypePpt } from '@tabler/icons-react'
 import type { BankQuestionDTO, PaperSetItemDTO } from '@shared/types'
 import { EmptyState } from '../components/EmptyState'
+import { notifyBasketChanged } from '../components/useBasketCount'
 import { IconClipboardList } from '@tabler/icons-react'
 
 function BasketView(): React.JSX.Element {
@@ -47,6 +48,7 @@ function BasketView(): React.JSX.Element {
 
   const handleRemove = useCallback(async (itemId: number) => {
     await window.api.removeFromSet(itemId)
+    notifyBasketChanged()
     await reload()
   }, [reload])
 

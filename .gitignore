@@ -8,3 +8,6 @@ _bat.log
 _bat.err
 # tsc 增量构建缓存（tsconfig.web.json --noEmit 产生）
 *.tsbuildinfo
+
+# 本机生成的启动快捷方式（scripts/prepare-test-release.ps1 可重建）
+打开题库测试版.lnk

@@ -1,4 +1,5 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { LibraryLayout } from './components/AppLayout/LibraryLayout'
 import { WorkflowLayout } from './components/AppLayout/WorkflowLayout'
 import HomeView from './views/HomeView'
@@ -13,6 +14,18 @@ import AnswerMatchView from './views/AnswerMatchView'
 import ErrorBoundary from './components/ErrorBoundary'
 
 function App(): React.JSX.Element {
+  // 文件拖放不能触发 Chromium 的默认导航，否则会离开题库界面。
+  useEffect(() => {
+    const preventFileNavigation = (event: DragEvent) => {
+      if (event.dataTransfer?.types.includes('Files')) event.preventDefault()
+    }
+    document.addEventListener('dragover', preventFileNavigation)
+    document.addEventListener('drop', preventFileNavigation)
+    return () => {
+      document.removeEventListener('dragover', preventFileNavigation)
+      document.removeEventListener('drop', preventFileNavigation)
+    }
+  }, [])
   return (
     <HashRouter>
       <Routes>

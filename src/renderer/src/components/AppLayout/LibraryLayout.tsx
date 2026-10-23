@@ -40,6 +40,8 @@ export function LibraryLayout() {
   const location = useLocation()
   const { colorScheme, toggleColorScheme } = useMantineColorScheme()
   const { count } = useBasketCount()
+  const [version, setVersion] = useState('')
+  useEffect(() => { window.api.getAppVersion().then(setVersion).catch(() => {}) }, [])
   const [mobileOpen, { toggle }] = useDisclosure()
   const [settingsOpen, { open: openSettings, close: closeSettings }] = useDisclosure(false)
   const [dpi, setDpi] = useState<string>('300')
@@ -116,6 +118,7 @@ export function LibraryLayout() {
             <Text fw={700} c="sky.7">
               物理教师题库管理系统
             </Text>
+            {version && <Badge variant="light" size="sm">{version.includes('beta') ? '测试版 ' : ''}{version}</Badge>}
           </Group>
           <Group gap="xs">
             <ActionIcon

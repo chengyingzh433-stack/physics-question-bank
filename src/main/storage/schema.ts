@@ -50,7 +50,10 @@ CREATE TABLE IF NOT EXISTS segments (
 CREATE TABLE IF NOT EXISTS question_types (
   id INTEGER PRIMARY KEY, name TEXT NOT NULL, is_builtin INTEGER DEFAULT 0);
 
-CREATE TABLE IF NOT EXISTS chapters (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS chapters (
+  id INTEGER PRIMARY KEY, name TEXT NOT NULL,
+  parent_id INTEGER REFERENCES chapters(id) ON DELETE SET NULL,
+  template_key TEXT, node_key TEXT);
 CREATE TABLE IF NOT EXISTS knowledge_points (
   id INTEGER PRIMARY KEY, name TEXT NOT NULL,
   chapter_id INTEGER REFERENCES chapters(id) ON DELETE SET NULL);
@@ -98,6 +101,15 @@ CREATE TABLE IF NOT EXISTS paper_set_items (
   order_index INTEGER, group_header TEXT, display_number TEXT);
 
 CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT);
+
+CREATE TABLE IF NOT EXISTS question_folders (
+  id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS question_folder_items (
+  folder_id INTEGER NOT NULL REFERENCES question_folders(id) ON DELETE CASCADE,
+  question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+  PRIMARY KEY (folder_id, question_id));
+CREATE INDEX IF NOT EXISTS idx_question_folder_items_question
+  ON question_folder_items(question_id);
 `;
 
 export const BUILTIN_TYPES = ['单选题','多选题','填空题','实验题','计算题'];

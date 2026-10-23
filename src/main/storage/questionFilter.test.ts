@@ -26,7 +26,8 @@ describe('buildQuestionFilter', () => {
     })
     expect(r.where).toContain('q.type_id = ?')
     expect(r.where).toContain('q.paper_id = ?')
-    expect(r.where).toContain('q.chapter_id = ?')
+    expect(r.where).toContain('q.chapter_id IN (')
+    expect(r.where).toContain('WITH RECURSIVE chapter_descendants')
     expect(r.where).toContain('q.difficulty_id = ?')
     expect(r.where.split(' AND ').length).toBe(6) // 4 条件 + image_path + kind
     expect(r.params).toEqual([1, 2, 3, 4])
@@ -61,10 +62,10 @@ describe('buildQuestionQuery', () => {
       kp_ids: [30, 40]
     })
     expect(sql).toContain('q.type_id = ?')
-    expect(sql).toContain('q.chapter_id = ?')
+    expect(sql).toContain('q.chapter_id IN (')
     expect(sql).toContain('qkp.kp_id IN (?,?)')
-    // params 顺序：where 条件先（type, chapter），kp join 后
-    expect(params).toEqual([10, 20, 30, 40])
+    // JOIN 占位符先出现，随后才是 WHERE 条件。
+    expect(params).toEqual([30, 40, 10, 20])
   })
 })
 

@@ -1,4 +1,24 @@
 import type { DB } from '../StorageService'
+import { validateBankQuestionIds } from './folderRepo'
+
+export function addManyToSet(db: DB, setId: number, questionIds: number[]): number {
+  return db.transaction(() => {
+    if (!db.prepare('SELECT id FROM paper_sets WHERE id = ?').get(setId)) throw new Error('组卷篮不存在')
+    const ids = validateBankQuestionIds(db, questionIds)
+    let added = 0
+    for (const id of ids) {
+      if (!isInSet(db, setId, id)) {
+        addToSet(db, setId, id)
+        added++
+      }
+    }
+    return added
+  })()
+}
+
+export function removeQuestionFromSet(db: DB, setId: number, questionId: number): void {
+  db.prepare('DELETE FROM paper_set_items WHERE set_id = ? AND question_id = ?').run(setId, questionId)
+}
 
 export interface PaperSetRow {
   id: number

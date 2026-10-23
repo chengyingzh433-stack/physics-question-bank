@@ -7,12 +7,10 @@ import {
   Group,
   Select,
   Badge,
-  Chip,
   TextInput,
   Button,
   LoadingOverlay,
   Stack,
-  Popover,
   Drawer,
   Alert,
   Container,
@@ -21,14 +19,16 @@ import {
 import { notifications } from '@mantine/notifications'
 import { IconTemplate, IconEdit, IconArrowLeft } from '@tabler/icons-react'
 import type {
+  ChapterDTO,
   QuestionDTO,
   QuestionTypeDTO,
   TemplateRuleDTO
 } from '@shared/types'
+import { ChapterPicker } from '../components/ChapterPicker'
+import { KnowledgePointPicker } from '../components/KnowledgePointPicker'
 import { applyTemplate } from '../services/TemplateService'
 import TemplateRulesEditor from '../components/TemplateRulesEditor'
 
-interface ChapterDTO { id: number; name: string }
 interface KpDTO { id: number; name: string; chapter_id: number | null }
 interface DiffDTO { id: number; name: string; sort_order: number }
 
@@ -47,9 +47,6 @@ function PaperReviewView(): React.JSX.Element | null {
   const [qKps, setQKps] = useState<Record<number, Set<number>>>({})
   const [busy, setBusy] = useState(false)
   const [paperStatus, setPaperStatus] = useState<string | null>(null)
-  // 按题 id 独立的知识点新建输入（修串味 bug）
-  const [newKpNames, setNewKpNames] = useState<Record<number, string>>({})
-  const [newChapterName, setNewChapterName] = useState('')
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false)
 
   const reload = useCallback(async () => {
@@ -127,31 +124,19 @@ function PaperReviewView(): React.JSX.Element | null {
     [pid]
   )
 
-  const handleCreateKp = useCallback(async (qid: number) => {
-    const name = newKpNames[qid]?.trim()
-    if (!name) return
+  const handleSetKps = async (qid: number, ids: number[]) => {
+    await window.api.setQuestionKnowledgePoints(qid, ids)
+    setQKps((current) => ({ ...current, [qid]: new Set(ids) }))
+  }
+  const handleCreateKp = async (qid: number, name: string) => {
     const id = await window.api.createKnowledgePoint(name, null)
-    setNewKpNames((m) => ({ ...m, [qid]: '' }))
-    const newList = await window.api.listKnowledgePoints()
-    setKps(newList)
-    const cur = new Set(qKps[qid] ?? [])
-    cur.add(id)
-    await window.api.setQuestionKnowledgePoints(qid, Array.from(cur))
-    setQKps((m) => ({ ...m, [qid]: cur }))
-  }, [newKpNames, qKps])
-
-  const handleCreateChapter = useCallback(async (qid: number) => {
-    if (!newChapterName.trim()) return
-    const id = await window.api.createChapter(newChapterName.trim())
-    setNewChapterName('')
-    const newList = await window.api.listChapters()
-    setChapters(newList)
-    await window.api.setQuestionChapter(qid, id)
-    setQuestions((arr) => arr.map((q) => (q.id === qid ? { ...q, chapter_id: id } : q)))
-  }, [newChapterName])
+    setKps(await window.api.listKnowledgePoints())
+    const ids = new Set(await window.api.getQuestionKnowledgePoints(qid))
+    ids.add(id)
+    await handleSetKps(qid, Array.from(ids))
+  }
 
   const typeData = types.map((t) => ({ value: String(t.id), label: t.name }))
-  const chapterData = chapters.map((c) => ({ value: String(c.id), label: c.name }))
   const diffData = diffs.map((d) => ({ value: String(d.id), label: d.name }))
   const templateData = templates.map((t) => ({ value: String(t.id), label: t.name }))
 
@@ -254,35 +239,8 @@ function PaperReviewView(): React.JSX.Element | null {
                     clearable
                     placeholder="未设"
                   />
-                  <Group gap="xs" align="flex-end">
-                    <Select
-                      label="章节"
-                      data={chapterData}
-                      value={q.chapter_id != null ? String(q.chapter_id) : null}
-                      onChange={(v) => handleSetChapter(q.id, v ? Number(v) : null)}
-                      size="xs"
-                      clearable
-                      placeholder="未设"
-                      style={{ flex: 1 }}
-                    />
-                    <Popover width={200} position="bottom" withArrow shadow="md">
-                      <Popover.Target>
-                        <Button size="xs" variant="light" mt="lg">新建</Button>
-                      </Popover.Target>
-                      <Popover.Dropdown>
-                        <Group gap="xs">
-                          <TextInput
-                            placeholder="新章节名"
-                            value={newChapterName}
-                            onChange={(e) => setNewChapterName(e.currentTarget.value)}
-                            size="xs"
-                            style={{ flex: 1 }}
-                          />
-                          <Button size="xs" onClick={() => handleCreateChapter(q.id)}>添加</Button>
-                        </Group>
-                      </Popover.Dropdown>
-                    </Popover>
-                  </Group>
+                  <ChapterPicker chapters={chapters} value={q.chapter_id}
+                    onChange={(id) => handleSetChapter(q.id, id)} onRefresh={setChapters} />
                   <Select
                     label="难度"
                     data={diffData}
@@ -293,34 +251,8 @@ function PaperReviewView(): React.JSX.Element | null {
                     placeholder="未设"
                   />
 
-                  <div>
-                    <Text size="xs" fw={500} mb={4}>知识点</Text>
-                    <Chip.Group multiple value={Array.from(curKps).map(String)} onChange={(vals) => {
-                      const newSet = new Set(vals.map(Number))
-                      window.api.setQuestionKnowledgePoints(q.id, Array.from(newSet))
-                      setQKps((m) => ({ ...m, [q.id]: newSet }))
-                    }}>
-                      <Group gap={4}>
-                        {kps.map((kp) => (
-                          <Chip key={kp.id} value={String(kp.id)} size="xs" variant="light">
-                            {kp.name}
-                          </Chip>
-                        ))}
-                      </Group>
-                    </Chip.Group>
-                    <Group mt={4} gap="xs">
-                      <TextInput
-                        placeholder="临时新建知识点"
-                        value={newKpNames[q.id] ?? ''}
-                        onChange={(e) => setNewKpNames((m) => ({ ...m, [q.id]: e.currentTarget.value }))}
-                        size="xs"
-                        style={{ flex: 1 }}
-                      />
-                      <Button size="xs" variant="light" onClick={() => handleCreateKp(q.id)}>
-                        新建并选中
-                      </Button>
-                    </Group>
-                  </div>
+                  <KnowledgePointPicker points={kps} value={Array.from(curKps)}
+                    onChange={(ids) => handleSetKps(q.id, ids)} onCreate={(name) => handleCreateKp(q.id, name)} />
 
                   {/* M13：年份/出处。留空 = 继承试卷默认值，填写 = 本题单独覆盖 */}
                   <QuestionOverrideFields question={q} onSave={handleSetOverride} />

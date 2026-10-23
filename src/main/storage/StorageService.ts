@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { join } from 'path'
 import { SCHEMA_V1, BUILTIN_TYPES, BUILTIN_DIFFICULTIES } from './schema'
+import { initializeChapterTemplates } from './chapterTemplates'
 
 export type DB = Database.Database
 
@@ -27,6 +28,7 @@ export function initDatabase(): void {
 
   // 执行建表脚本（含 PRAGMA，CREATE TABLE IF NOT EXISTS 幂等）
   db.exec(SCHEMA_V1)
+  initializeChapterTemplates(db)
 
   // 种子数据仅在 schema_meta 为空（首次）时写入
   const row = db.prepare('SELECT COUNT(*) AS c FROM schema_meta').get() as { c: number }

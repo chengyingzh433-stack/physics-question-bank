@@ -1,5 +1,5 @@
 import { ipcMain, dialog, BrowserWindow, app } from 'electron'
-import { basename, join } from 'path'
+import { join } from 'path'
 import { getDb } from '../storage/StorageService'
 import * as paperRepo from '../storage/repositories/paperRepo'
 import * as pageRepo from '../storage/repositories/pageRepo'
@@ -8,17 +8,22 @@ import * as questionRepo from '../storage/repositories/questionRepo'
 import * as questionTypeRepo from '../storage/repositories/questionTypeRepo'
 import * as templateRepo from '../storage/repositories/templateRepo'
 import * as tagRepo from '../storage/repositories/tagRepo'
+import { installChapterTemplate, listChapterTemplates } from '../storage/chapterTemplates'
 import * as setRepo from '../storage/repositories/setRepo'
+import * as folderRepo from '../storage/repositories/folderRepo'
 import * as exportService from '../export/ExportService'
 import * as fileService from '../files/FileService'
+import { importPaperFromPath } from '../files/importPaper'
 import type { NewPageDTO, SegmentDTO, QuestionFilterCriteria } from '../../shared/types'
 
 /** 注册所有 IPC handler。在 app.whenReady 后调用一次。 */
 export function registerIpc(): void {
   // ---- app ----
   ipcMain.handle('app:ping', () => 'pong')
+  ipcMain.handle('app:version', () => app.getVersion())
 
   // ---- papers ----
+  ipcMain.handle('papers:importPath', (_e, sourcePath: string) => importPaperFromPath(sourcePath))
   ipcMain.handle('papers:list', () => {
     return paperRepo.listPapers(getDb())
   })
@@ -46,23 +51,7 @@ export function registerIpc(): void {
       })
       if (result.canceled || result.filePaths.length === 0) return null
 
-      const srcPath = result.filePaths[0]
-      const db = getDb()
-      const paperName = name?.trim() || basename(srcPath, '.pdf')
-      const paperId = paperRepo.createPaper(db, paperName, options)
-
-      try {
-        const destPath = await fileService.copySourcePdf(paperId, srcPath)
-        // 记录来源路径与原始文件名
-        db.prepare(
-          `UPDATE papers SET source_pdf_path = ?, original_filename = ?, updated_at = ? WHERE id = ?`
-        ).run(destPath, basename(srcPath), new Date().toISOString(), paperId)
-        return paperRepo.getPaper(db, paperId)
-      } catch (err) {
-        // 复制失败：回滚（删除刚建的 paper，级联清理）
-        paperRepo.deletePaper(db, paperId)
-        throw err
-      }
+      return importPaperFromPath(result.filePaths[0], name, options)
     }
   )
 
@@ -311,7 +300,9 @@ export function registerIpc(): void {
 
   // ---- tags ----
   ipcMain.handle('chapters:list', () => tagRepo.listChapters(getDb()))
-  ipcMain.handle('chapters:create', (_e, name: string) => tagRepo.createChapter(getDb(), name))
+  ipcMain.handle('chapterTemplates:list', () => listChapterTemplates(getDb()))
+  ipcMain.handle('chapterTemplates:install', (_e, key: string) => installChapterTemplate(getDb(), key))
+  ipcMain.handle('chapters:create', (_e, name: string, parentId?: number | null) => tagRepo.createChapter(getDb(), name, parentId))
   ipcMain.handle('chapters:delete', (_e, id: number) => tagRepo.deleteChapter(getDb(), id))
   ipcMain.handle('kps:list', () => tagRepo.listKnowledgePoints(getDb()))
   ipcMain.handle('kps:create', (_e, name: string, chapterId: number | null) =>
@@ -340,6 +331,12 @@ export function registerIpc(): void {
   )
 
   // ---- bank ----
+  ipcMain.handle('folders:list', () => folderRepo.listFolders(getDb()))
+  ipcMain.handle('folders:create', (_e, name: string) => folderRepo.createFolder(getDb(), name))
+  ipcMain.handle('folders:rename', (_e, id: number, name: string) => folderRepo.renameFolder(getDb(), id, name))
+  ipcMain.handle('folders:delete', (_e, id: number) => folderRepo.deleteFolder(getDb(), id))
+  ipcMain.handle('folders:addQuestions', (_e, id: number, ids: number[]) => folderRepo.addQuestionsToFolder(getDb(), id, ids))
+  ipcMain.handle('folders:removeQuestions', (_e, id: number, ids: number[]) => folderRepo.removeQuestionsFromFolder(getDb(), id, ids))
   ipcMain.handle('bank:list', (_e, criteria: QuestionFilterCriteria) => {
     return questionRepo.listBankQuestions(getDb(), criteria)
   })
@@ -348,6 +345,8 @@ export function registerIpc(): void {
   })
 
   // ---- basket (paper_set draft) ----
+  ipcMain.handle('sets:addMany', (_e, setId: number, ids: number[]) => setRepo.addManyToSet(getDb(), setId, ids))
+  ipcMain.handle('sets:removeQuestion', (_e, setId: number, questionId: number) => setRepo.removeQuestionFromSet(getDb(), setId, questionId))
   ipcMain.handle('sets:getDraft', () => {
     return setRepo.getOrCreateDraftSet(getDb())
   })

@@ -1,17 +1,35 @@
 import type { DB } from '../StorageService'
+import type { ChapterDTO } from '../../../shared/types'
 
 // ---- chapters ----
-export interface ChapterRow {
-  id: number
-  name: string
-}
+export type ChapterRow = ChapterDTO
 export function listChapters(db: DB): ChapterRow[] {
   return db.prepare(`SELECT * FROM chapters ORDER BY id ASC`).all() as ChapterRow[]
 }
-export function createChapter(db: DB, name: string): number {
-  return Number(db.prepare(`INSERT INTO chapters (name) VALUES (?)`).run(name).lastInsertRowid)
+function normalizeName(name: string, label: string): string {
+  const normalized = typeof name === 'string' ? name.trim() : ''
+  if (!normalized) throw new Error(`${label}不能为空`)
+  if (normalized.length > 100) throw new Error(`${label}不能超过100个字`)
+  return normalized
+}
+
+export function createChapter(db: DB, name: string, parentId: number | null = null): number {
+  const normalized = normalizeName(name, '章节名称')
+  const parent = parentId === null ? null : db.prepare('SELECT name FROM chapters WHERE id = ?').get(parentId) as { name: string } | undefined
+  if (parentId !== null && !parent) throw new Error('上级章节不存在，请重新选择')
+  const fullName = parent ? `${parent.name} / ${normalized}` : normalized
+  if (fullName.length > 1000) throw new Error('章节层级过长，请选择更高一级的章节')
+  const existing = db.prepare('SELECT id FROM chapters WHERE parent_id IS ? AND name = ? ORDER BY id LIMIT 1')
+    .get(parentId, fullName) as { id: number } | undefined
+  if (existing) return existing.id
+  return Number(db.prepare('INSERT INTO chapters (name, parent_id) VALUES (?, ?)').run(fullName, parentId).lastInsertRowid)
 }
 export function deleteChapter(db: DB, id: number): void {
+  const chapter = db.prepare('SELECT template_key FROM chapters WHERE id = ?').get(id) as { template_key: string | null } | undefined
+  if (chapter?.template_key) throw new Error('预设模板章节不能删除')
+  if (db.prepare('SELECT 1 FROM chapters WHERE parent_id = ? LIMIT 1').get(id)) {
+    throw new Error('请先删除该章节下的自定义子章节')
+  }
   db.prepare(`DELETE FROM chapters WHERE id = ?`).run(id)
 }
 
@@ -25,10 +43,17 @@ export function listKnowledgePoints(db: DB): KnowledgePointRow[] {
   return db.prepare(`SELECT * FROM knowledge_points ORDER BY id ASC`).all() as KnowledgePointRow[]
 }
 export function createKnowledgePoint(db: DB, name: string, chapterId: number | null): number {
+  const normalized = normalizeName(name, '知识点名称')
+  if (chapterId !== null && !db.prepare('SELECT 1 FROM chapters WHERE id = ?').get(chapterId)) {
+    throw new Error('所属章节不存在，请重新选择')
+  }
+  const existing = db.prepare('SELECT id FROM knowledge_points WHERE chapter_id IS ? AND name = ? ORDER BY id LIMIT 1')
+    .get(chapterId, normalized) as { id: number } | undefined
+  if (existing) return existing.id
   return Number(
     db
       .prepare(`INSERT INTO knowledge_points (name, chapter_id) VALUES (?, ?)`)
-      .run(name, chapterId).lastInsertRowid
+      .run(normalized, chapterId).lastInsertRowid
   )
 }
 export function deleteKnowledgePoint(db: DB, id: number): void {

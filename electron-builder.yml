@@ -3,12 +3,13 @@
   "appId": "com.cyz.physics-question-bank",
   "productName": "物理教师题库管理系统",
   "directories": {
-    "output": "release"
+    "output": "release/${version}"
   },
   "npmRebuild": false,
   "files": [
-    "out/**/*",
-    "node_modules/**/*",
+    "out/main/**/*",
+    "out/preload/**/*",
+    "out/renderer/**/*",
     "package.json"
   ],
   "asarUnpack": [
@@ -29,11 +30,14 @@
     ]
   },
   "nsis": {
+    "artifactName": "教师题库-测试版-${version}-安装程序.${ext}",
+    "installerLanguages": ["zh_CN"],
+    "language": "2052",
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "物理题库系统"
+    "shortcutName": "教师题库"
   }
 }

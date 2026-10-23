@@ -1,6 +1,7 @@
 import type { DB } from '../StorageService'
 import type { SegmentDTO } from '../../../shared/types'
 import type { QuestionFilterCriteria } from '../questionFilter'
+import { buildQuestionQuery } from '../questionFilter'
 
 /** 题目（含合并信息）的查询结果。 */
 export interface QuestionRow {
@@ -55,8 +56,7 @@ export function listBankQuestions(
   db: DB,
   criteria: QuestionFilterCriteria
 ): (QuestionRow & { paper_name: string })[] {
-  const { where, params } = buildQuestionFilterWithJoin(criteria)
-  const sql = `SELECT DISTINCT ${QUESTION_COLUMNS}, p.name AS paper_name FROM questions q JOIN papers p ON p.id = q.paper_id ${where} ORDER BY q.paper_id ASC, q.order_in_paper ASC`
+  const { sql, params } = buildQuestionQuery(criteria, `${QUESTION_COLUMNS}, p.name AS paper_name`)
   return db.prepare(sql).all(...params) as (QuestionRow & { paper_name: string })[]
 }
 
@@ -82,50 +82,6 @@ export function listYearSources(db: DB): { years: number[]; sources: string[] } 
     )
     .all() as { s: string }[]
   return { years: years.map((r) => r.y), sources: sources.map((r) => r.s) }
-}
-
-// buildQuestionFilterWithJoin 把 kp 命中放进 EXISTS 子查询，避免 JOIN 放大行数。
-function buildQuestionFilterWithJoin(c: QuestionFilterCriteria): {
-  where: string
-  params: (string | number)[]
-} {
-  // p.kind = 'paper' 确保答案卷的 question 行不进题库（M14.5 B2）。
-  // 答案卷的 question 行本来就没有 image_path，但那是巧合防护，不能依赖。
-  const conditions: string[] = ['q.image_path IS NOT NULL', "p.kind = 'paper'"]
-  const params: (string | number)[] = []
-  if (c.type_id != null) {
-    conditions.push('q.type_id = ?')
-    params.push(c.type_id)
-  }
-  if (c.paper_id != null) {
-    conditions.push('q.paper_id = ?')
-    params.push(c.paper_id)
-  }
-  if (c.chapter_id != null) {
-    conditions.push('q.chapter_id = ?')
-    params.push(c.chapter_id)
-  }
-  if (c.difficulty_id != null) {
-    conditions.push('q.difficulty_id = ?')
-    params.push(c.difficulty_id)
-  }
-  // 年份/出处走 effective 口径（M13）：单题覆盖优先于试卷默认
-  if (c.year != null) {
-    conditions.push('COALESCE(q.year_override, p.year) = ?')
-    params.push(c.year)
-  }
-  if (c.source != null && c.source !== '') {
-    conditions.push('COALESCE(q.source_override, p.source) = ?')
-    params.push(c.source)
-  }
-  if (c.kp_ids && c.kp_ids.length > 0) {
-    const placeholders = c.kp_ids.map(() => '?').join(',')
-    conditions.push(
-      `EXISTS (SELECT 1 FROM question_knowledge_points qkp WHERE qkp.question_id = q.id AND qkp.kp_id IN (${placeholders}))`
-    )
-    c.kp_ids.forEach((k) => params.push(k))
-  }
-  return { where: 'WHERE ' + conditions.join(' AND '), params }
 }
 
 /** 取某题的所有 segment（按 merge_order）。 */
@@ -292,37 +248,32 @@ export function updateQuestionSourceOverride(
 }
 
 /**
- * M17: 批量获取多个题目的知识点（避免 N+1 查询）。
- * 返回 Map<questionId, KnowledgePointDTO[]>。
+ * M17: 批量获取多个题目的知识点 ID（避免 N+1 查询）。
+ * 与 shared Api 契约一致，返回 Map<questionId, number[]>；无关联的题不设键。
  */
 export function batchGetQuestionKnowledgePoints(
   db: DB,
   questionIds: number[]
-): Map<number, { id: number; name: string; created_at: string; updated_at: string }[]> {
+): Map<number, number[]> {
   if (questionIds.length === 0) return new Map()
   const placeholders = questionIds.map(() => '?').join(',')
   const rows = db
     .prepare(
-      `SELECT qkp.question_id, kp.id, kp.name, kp.created_at, kp.updated_at
+      `SELECT qkp.question_id, qkp.kp_id
        FROM question_knowledge_points qkp
-       JOIN knowledge_points kp ON qkp.kp_id = kp.id
        WHERE qkp.question_id IN (${placeholders})
-       ORDER BY qkp.question_id, kp.name`
+       ORDER BY qkp.question_id, qkp.kp_id`
     )
     .all(...questionIds) as Array<{
     question_id: number
-    id: number
-    name: string
-    created_at: string
-    updated_at: string
+    kp_id: number
   }>
 
-  const map = new Map<number, { id: number; name: string; created_at: string; updated_at: string }[]>()
+  const map = new Map<number, number[]>()
   for (const row of rows) {
     const qid = row.question_id
     if (!map.has(qid)) map.set(qid, [])
-    const { question_id, ...kp } = row
-    map.get(qid)!.push(kp)
+    map.get(qid)!.push(row.kp_id)
   }
   return map
 }

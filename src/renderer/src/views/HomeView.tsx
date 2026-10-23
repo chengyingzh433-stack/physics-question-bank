@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   SimpleGrid,
@@ -26,6 +26,9 @@ import { EmptyState } from '../components/EmptyState'
 function HomeView(): React.JSX.Element {
   const [papers, setPapers] = useState<PaperDTO[]>([])
   const [busy, setBusy] = useState(false)
+  const [dragging, setDragging] = useState(false)
+  const [importStatus, setImportStatus] = useState('')
+  const importing = useRef(false)
   const navigate = useNavigate()
 
   const refresh = useCallback(async () => {
@@ -44,15 +47,13 @@ function HomeView(): React.JSX.Element {
     refresh()
   }, [refresh])
 
-  const handleImport = useCallback(async () => {
-    setBusy(true)
+  const importOne = useCallback(async (create: () => Promise<PaperDTO | null>) => {
     let paper: PaperDTO | null = null
     try {
-      paper = await window.api.importPaper('')
-      if (!paper) return // 用户取消选择
+      paper = await create()
+      if (!paper) return false
       await importPagesFromPdf(paper)
-      await refresh()
-      notifications.show({ message: '导入成功', color: 'green' })
+      return true
     } catch (e) {
       // 回滚：若已建 paper 行但后续读尺寸/写页失败，删掉这条脏数据（含磁盘文件，T3 后 deletePaper 一并清）
       if (paper) {
@@ -66,13 +67,83 @@ function HomeView(): React.JSX.Element {
       }
       notifications.show({
         title: '导入失败',
-        message: e instanceof Error ? e.message : String(e),
+        message: `${paper ? paper.name + '：' : ''}${e instanceof Error ? e.message : String(e)}`,
         color: 'red'
       })
-    } finally {
-      setBusy(false)
+      return false
     }
   }, [refresh])
+
+  const handleImport = useCallback(async () => {
+    if (importing.current) return
+    importing.current = true
+    setBusy(true); setImportStatus('正在导入试卷…')
+    try {
+      if (await importOne(() => window.api.importPaper(''))) {
+        notifications.show({ message: '导入成功', color: 'green' })
+      }
+      await refresh()
+    } finally {
+      importing.current = false
+      setBusy(false); setImportStatus('')
+    }
+  }, [importOne, refresh])
+
+  const importDroppedFiles = useCallback(async (files: File[]) => {
+    if (importing.current) {
+      notifications.show({ message: '正在导入，请等待当前任务完成。', color: 'blue' })
+      return
+    }
+    const pdfs = files.filter((file) => /\.pdf$/i.test(file.name))
+    if (pdfs.length !== files.length || files.length === 0) {
+      notifications.show({ message: '仅支持 PDF 文件，其他格式和文件夹已跳过。', color: 'orange' })
+    }
+    if (pdfs.length === 0) return
+    importing.current = true
+    setBusy(true)
+    let imported = 0
+    try {
+      for (const [index, file] of pdfs.entries()) {
+        setImportStatus(`正在导入 ${index + 1}/${pdfs.length}：${file.name}`)
+        if (await importOne(() => window.api.importDroppedPaper(file))) imported++
+      }
+      await refresh()
+      if (imported) notifications.show({ message: `已导入 ${imported} 份试卷，点击试卷即可开始裁切。`, color: 'green' })
+    } finally {
+      importing.current = false
+      setBusy(false); setImportStatus('')
+    }
+  }, [importOne, refresh])
+
+  useEffect(() => {
+    let depth = 0
+    const enter = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes('Files')) return
+      event.preventDefault(); depth++
+      if (!importing.current) setDragging(true)
+    }
+    const over = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes('Files')) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = importing.current ? 'none' : 'copy'
+    }
+    const leave = () => { depth = Math.max(0, depth - 1); if (depth === 0) setDragging(false) }
+    const drop = (event: DragEvent) => {
+      if (!event.dataTransfer?.types.includes('Files')) return
+      event.preventDefault(); depth = 0; setDragging(false)
+      void importDroppedFiles(Array.from(event.dataTransfer.files))
+    }
+    window.addEventListener('dragenter', enter)
+    window.addEventListener('dragover', over)
+    window.addEventListener('dragleave', leave)
+    window.addEventListener('drop', drop)
+    return () => {
+      window.removeEventListener('dragenter', enter)
+      window.removeEventListener('dragover', over)
+      window.removeEventListener('dragleave', leave)
+      window.removeEventListener('drop', drop)
+    }
+  }, [importDroppedFiles])
 
   const handleOpen = useCallback(
     (id: number) => {
@@ -124,28 +195,31 @@ function HomeView(): React.JSX.Element {
     []
   )
 
-  if (papers.length === 0 && !busy) {
-    return (
+  return (
+    <div style={{ position: 'relative', minHeight: 'calc(100vh - 100px)' }}>
+      <LoadingOverlay visible={busy} loaderProps={{ children: <Stack align="center"><Text fw={600}>{importStatus}</Text><Text size="sm">请稍候，导入后会自动出现在列表中</Text></Stack> }} />
+      {dragging && <div role="status" data-testid="pdf-drop-overlay" style={{
+        position: 'fixed', inset: 16, zIndex: 500, pointerEvents: 'none', border: '3px dashed var(--mantine-color-sky-5)',
+        borderRadius: 12, background: 'var(--mantine-color-body)', opacity: 0.95,
+        display: 'flex', alignItems: 'center', justifyContent: 'center'
+      }}><Stack align="center"><IconUpload size={48} /><Text size="xl" fw={700}>松开鼠标，导入 PDF 试卷</Text><Text>支持一次拖入多份 PDF</Text></Stack></div>}
+      <Text size="sm" c="dimmed" mb="md">将 PDF 文件拖到此页面即可导入，支持一次拖入多份。</Text>
+      {papers.length === 0 ? (
       <EmptyState
         icon={IconUpload}
         title="还没有试卷"
-        description="导入一份 PDF 试卷开始裁切和入库"
+        description="拖入 PDF，或点击下方按钮选择文件，开始裁切和入库"
         actionLabel="导入试卷 PDF"
         onAction={handleImport}
       />
-    )
-  }
-
-  return (
-    <div style={{ position: 'relative' }}>
-      <LoadingOverlay visible={busy} />
+      ) : <>
       <Group justify="space-between" mb="md">
         <Text size="xl" fw={700}>
           试卷列表
         </Text>
         <Button
           leftSection={<IconUpload size={16} />}
-          onClick={handleImport}
+          onClick={() => { void handleImport() }}
           loading={busy}
         >
           导入试卷 PDF
@@ -213,6 +287,7 @@ function HomeView(): React.JSX.Element {
           </Card>
         ))}
       </SimpleGrid>
+      </>}
     </div>
   )
 }

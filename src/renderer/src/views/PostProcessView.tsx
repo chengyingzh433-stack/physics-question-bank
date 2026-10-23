@@ -18,9 +18,6 @@ import {
   Tooltip,
   Divider,
   Box,
-  Chip,
-  TextInput,
-  Popover,
   Drawer
 } from '@mantine/core'
 import { modals } from '@mantine/modals'
@@ -36,7 +33,9 @@ import {
   IconEdit,
   IconRefresh
 } from '@tabler/icons-react'
-import type { SegmentDTO, QuestionDTO, QuestionTypeDTO, TemplateRuleDTO } from '@shared/types'
+import type { ChapterDTO, SegmentDTO, QuestionDTO, QuestionTypeDTO, TemplateRuleDTO } from '@shared/types'
+import { ChapterPicker } from '../components/ChapterPicker'
+import { KnowledgePointPicker } from '../components/KnowledgePointPicker'
 import { sourcePdfUrl } from '../services/ImportService'
 import { loadPdf, renderPageRegion, type PdfDocument } from '../services/RenderService'
 import {
@@ -101,12 +100,10 @@ function PostProcessView(): React.JSX.Element | null {
   const isAnswerMode = paper?.kind === 'answer'
 
   // 标签数据（章节/知识点/难度）
-  const [chapters, setChapters] = useState<{ id: number; name: string }[]>([])
+  const [chapters, setChapters] = useState<ChapterDTO[]>([])
   const [kps, setKps] = useState<{ id: number; name: string }[]>([])
   const [diffs, setDiffs] = useState<{ id: number; name: string }[]>([])
   const [qKps, setQKps] = useState<Record<number, Set<number>>>({})
-  const [newKpNames, setNewKpNames] = useState<Record<number, string>>({})
-  const [newChapterName, setNewChapterName] = useState('')
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false)
 
   // UX2-2: 撤销栈
@@ -301,31 +298,15 @@ function PostProcessView(): React.JSX.Element | null {
     setQKps((m) => ({ ...m, [qid]: new Set(kpIds) }))
   }, [ensureQuestionId])
 
-  const handleCreateKp = useCallback(async (preview: PreviewQuestion) => {
-    const name = newKpNames[preview.key]?.trim()
-    if (!name) return
+  const handleCreateKp = useCallback(async (preview: PreviewQuestion, name: string) => {
     const qid = await ensureQuestionId(preview)
-    // ensure 后用 qid 清理暂存（key 仍保留原值，下面统一清）
-    setNewKpNames((m) => ({ ...m, [preview.key]: '' }))
     const id = await window.api.createKnowledgePoint(name, null)
-    const newList = await window.api.listKnowledgePoints()
-    setKps(newList)
-    const cur = new Set(qKps[qid] ?? [])
+    setKps(await window.api.listKnowledgePoints())
+    const cur = new Set(await window.api.getQuestionKnowledgePoints(qid))
     cur.add(id)
     await window.api.setQuestionKnowledgePoints(qid, Array.from(cur))
     setQKps((m) => ({ ...m, [qid]: cur }))
-  }, [ensureQuestionId, newKpNames, qKps])
-
-  const handleCreateChapter = useCallback(async (preview: PreviewQuestion) => {
-    if (!newChapterName.trim()) return
-    const id = await window.api.createChapter(newChapterName.trim())
-    setNewChapterName('')
-    const newList = await window.api.listChapters()
-    setChapters(newList)
-    const qid = await ensureQuestionId(preview)
-    await window.api.setQuestionChapter(qid, id)
-    setQuestions((arr) => arr.map((q) => (q.id === qid ? { ...q, chapter_id: id } : q)))
-  }, [ensureQuestionId, newChapterName])
+  }, [ensureQuestionId])
 
   /**
    * 把当前模板预览的题型真正写进数据库。
@@ -795,15 +776,11 @@ function PostProcessView(): React.JSX.Element | null {
                 kps={kps}
                 diffs={diffs}
                 qKps={qKps}
-                newKpNames={newKpNames}
-                newChapterName={newChapterName}
                 onSetChapter={handleSetChapter}
                 onSetDifficulty={handleSetDifficulty}
                 onSetKps={handleSetKps}
                 onCreateKp={handleCreateKp}
-                onCreateChapter={handleCreateChapter}
-                onNewKpNameChange={(preview, val) => setNewKpNames((m) => ({ ...m, [preview.key]: val }))}
-                onNewChapterNameChange={setNewChapterName}
+                onChaptersChange={setChapters}
               />
             ) : (
               <DeletedPlaceholderCard
@@ -915,27 +892,22 @@ function QuestionCard(props: {
   /** 答案模式（M14.5）：卡片改称"答案 N"，不显示题型、不显示标签区。 */
   isAnswerMode: boolean
   // 标签 props
-  chapters: { id: number; name: string }[]
+  chapters: ChapterDTO[]
   kps: { id: number; name: string }[]
   diffs: { id: number; name: string }[]
   qKps: Record<number, Set<number>>
-  newKpNames: Record<number, string>
-  newChapterName: string
-  onSetChapter: (preview: PreviewQuestion, cid: number | null) => void
+  onSetChapter: (preview: PreviewQuestion, cid: number | null) => Promise<void>
   onSetDifficulty: (preview: PreviewQuestion, did: number | null) => void
-  onSetKps: (preview: PreviewQuestion, kpIds: number[]) => void
-  onCreateKp: (preview: PreviewQuestion) => void
-  onCreateChapter: (preview: PreviewQuestion) => void
-  onNewKpNameChange: (preview: PreviewQuestion, val: string) => void
-  onNewChapterNameChange: (val: string) => void
+  onSetKps: (preview: PreviewQuestion, kpIds: number[]) => Promise<void>
+  onCreateKp: (preview: PreviewQuestion, name: string) => Promise<void>
+  onChaptersChange: (chapters: ChapterDTO[]) => void
 }): React.JSX.Element {
   const {
     preview, doc, pages, types, templateTypeMap, questions,
     selected, onToggleSelect, onDelete, onUnmerge, maxW, scrollContainerRef,
     isAnswerMode,
-    chapters, kps, diffs, qKps, newKpNames, newChapterName,
-    onSetChapter, onSetDifficulty, onSetKps, onCreateKp, onCreateChapter,
-    onNewKpNameChange, onNewChapterNameChange
+    chapters, kps, diffs, qKps,
+    onSetChapter, onSetDifficulty, onSetKps, onCreateKp, onChaptersChange
   } = props
 
   // 题型推导
@@ -1001,40 +973,9 @@ function QuestionCard(props: {
       {/* 标签区：答案模式下隐藏（答案组无需章节/难度/知识点）。
           独立片段 questionId 为 null 时，赋标签会先 ensureQuestionId 建单段行。 */}
       {!isAnswerMode && <Stack gap="xs" mt="sm">
-        <Group gap="xs" align="flex-end">
-          <Select
-            label="章节"
-            data={chapters.map((c) => ({ value: String(c.id), label: c.name }))}
-            value={(() => {
-              const qid = preview.questionId
-              if (qid == null) return null
-              const cid = questions.find((q) => q.id === qid)?.chapter_id
-              return cid != null ? String(cid) : null
-            })()}
-            onChange={(v) => onSetChapter(preview, v ? Number(v) : null)}
-            size="xs"
-            clearable
-            placeholder="未设"
-            style={{ flex: 1 }}
-          />
-          <Popover width={200} position="bottom" withArrow shadow="md">
-            <Popover.Target>
-              <Button size="xs" variant="light" mt="lg">新建</Button>
-            </Popover.Target>
-            <Popover.Dropdown>
-              <Group gap="xs">
-                <TextInput
-                  placeholder="新章节名"
-                  value={newChapterName}
-                  onChange={(e) => onNewChapterNameChange(e.currentTarget.value)}
-                  size="xs"
-                  style={{ flex: 1 }}
-                />
-                <Button size="xs" onClick={() => onCreateChapter(preview)}>添加</Button>
-              </Group>
-            </Popover.Dropdown>
-          </Popover>
-        </Group>
+        <ChapterPicker chapters={chapters}
+          value={questions.find((q) => q.id === preview.questionId)?.chapter_id ?? null}
+          onChange={(id) => onSetChapter(preview, id)} onRefresh={onChaptersChange} />
         <Select
           label="难度"
           data={diffs.map((d) => ({ value: String(d.id), label: d.name }))}
@@ -1049,34 +990,9 @@ function QuestionCard(props: {
           clearable
           placeholder="未设"
         />
-        <div>
-          <Text size="xs" fw={500} mb={4}>知识点</Text>
-          <Chip.Group
-            multiple
-            value={preview.questionId != null ? Array.from(qKps[preview.questionId] ?? []).map(String) : []}
-            onChange={(vals) => onSetKps(preview, vals.map(Number))}
-          >
-            <Group gap={4}>
-              {kps.map((kp) => (
-                <Chip key={kp.id} value={String(kp.id)} size="xs" variant="light">
-                  {kp.name}
-                </Chip>
-              ))}
-            </Group>
-          </Chip.Group>
-          <Group mt={4} gap="xs">
-            <TextInput
-              placeholder="新建知识点"
-              value={newKpNames[preview.key] ?? ''}
-              onChange={(e) => onNewKpNameChange(preview, e.currentTarget.value)}
-              size="xs"
-              style={{ flex: 1 }}
-            />
-            <Button size="xs" variant="light" onClick={() => onCreateKp(preview)}>
-              新建并选中
-            </Button>
-          </Group>
-        </div>
+        <KnowledgePointPicker points={kps}
+          value={preview.questionId != null ? Array.from(qKps[preview.questionId] ?? []) : []}
+          onChange={(ids) => onSetKps(preview, ids)} onCreate={(name) => onCreateKp(preview, name)} />
       </Stack>}
     </Card>
   )

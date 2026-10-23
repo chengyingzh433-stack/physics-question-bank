@@ -45,9 +45,12 @@ export interface NewPageDTO {
 
 export interface Api {
   ping(): Promise<string>
+  getAppVersion(): Promise<string>
   // papers
   listPapers(): Promise<PaperDTO[]>
   getPaper(id: number): Promise<PaperDTO | null>
+  /** 拖放的本机 File 由 preload 解析路径，不读取整个文件到 JS 内存。 */
+  importDroppedPaper(file: File): Promise<PaperDTO>
   /** 导入试卷。M14: options.kind='answer' + parentPaperId 时建答案卷。 */
   importPaper(
     name: string,
@@ -164,8 +167,10 @@ export interface Api {
   ): Promise<number>
   deleteRule(ruleId: number): Promise<void>
   // tags
-  listChapters(): Promise<{ id: number; name: string }[]>
-  createChapter(name: string): Promise<number>
+  listChapters(): Promise<ChapterDTO[]>
+  listChapterTemplates(): Promise<ChapterTemplateDTO[]>
+  installChapterTemplate(key: string): Promise<void>
+  createChapter(name: string, parentId?: number | null): Promise<number>
   deleteChapter(id: number): Promise<void>
   listKnowledgePoints(): Promise<{ id: number; name: string; chapter_id: number | null }[]>
   createKnowledgePoint(name: string, chapterId: number | null): Promise<number>
@@ -181,6 +186,12 @@ export interface Api {
   batchQuestionKnowledgePoints(questionIds: number[]): Promise<Map<number, number[]>>
   // bank
   listBankQuestions(criteria: QuestionFilterCriteria): Promise<BankQuestionDTO[]>
+  listQuestionFolders(): Promise<QuestionFolderDTO[]>
+  createQuestionFolder(name: string): Promise<number>
+  renameQuestionFolder(id: number, name: string): Promise<void>
+  deleteQuestionFolder(id: number): Promise<void>
+  addQuestionsToFolder(folderId: number, questionIds: number[]): Promise<number>
+  removeQuestionsFromFolder(folderId: number, questionIds: number[]): Promise<number>
   /** 题库筛选可选的年份/出处清单（M13，distinct 按 effective 口径）。 */
   listYearSources(): Promise<{ years: number[]; sources: string[] }>
   // basket (paper_set draft)
@@ -188,6 +199,8 @@ export interface Api {
   listSetItems(setId: number): Promise<PaperSetItemDTO[]>
   listSetQuestionIds(setId: number): Promise<number[]>
   addToSet(setId: number, questionId: number): Promise<number>
+  addManyToSet(setId: number, questionIds: number[]): Promise<number>
+  removeQuestionFromSet(setId: number, questionId: number): Promise<void>
   removeFromSet(itemId: number): Promise<void>
   updateSetItem(
     itemId: number,
@@ -229,6 +242,11 @@ export interface PaperSetItemDTO {
 }
 
 export interface QuestionFilterCriteria {
+  /** 只搜索已有资料和标签，不搜索图片中的题干。 */
+  search?: string
+  folder_id?: number | null
+  unfiled?: boolean
+  answer_status?: 'with' | 'without' | null
   type_id?: number | null
   paper_id?: number | null
   chapter_id?: number | null
@@ -238,6 +256,12 @@ export interface QuestionFilterCriteria {
   year?: number | null
   /** 出处筛选（M13），走 COALESCE(单题覆盖, 试卷默认) 口径。 */
   source?: string | null
+}
+
+export interface QuestionFolderDTO {
+  id: number
+  name: string
+  question_count: number
 }
 
 export interface BankQuestionDTO {
@@ -263,7 +287,19 @@ export interface BankQuestionDTO {
 
 export interface ChapterDTO {
   id: number
+  /** 完整层级路径；旧版本自定义章节仍保留原名。 */
   name: string
+  parent_id: number | null
+  template_key: string | null
+  node_key: string | null
+}
+export interface ChapterTemplateDTO {
+  key: string
+  name: string
+  subject: string
+  edition: string
+  node_count: number
+  installed: boolean
 }
 export interface KnowledgePointDTO {
   id: number
