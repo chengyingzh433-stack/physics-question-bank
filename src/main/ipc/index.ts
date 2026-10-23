@@ -11,10 +11,11 @@ import * as tagRepo from '../storage/repositories/tagRepo'
 import { installChapterTemplate, listChapterTemplates } from '../storage/chapterTemplates'
 import * as setRepo from '../storage/repositories/setRepo'
 import * as folderRepo from '../storage/repositories/folderRepo'
+import * as answerPairingRepo from '../storage/repositories/answerPairingRepo'
 import * as exportService from '../export/ExportService'
 import * as fileService from '../files/FileService'
 import { importPaperFromPath } from '../files/importPaper'
-import type { NewPageDTO, SegmentDTO, QuestionFilterCriteria } from '../../shared/types'
+import type { AnswerBindingDTO, NewPageDTO, SegmentDTO, QuestionFilterCriteria } from '../../shared/types'
 
 /** 注册所有 IPC handler。在 app.whenReady 后调用一次。 */
 export function registerIpc(): void {
@@ -237,6 +238,16 @@ export function registerIpc(): void {
   )
 
   // M14: 保存答案图 + 绑定到题目
+  ipcMain.handle('answers:getPairings', (_e, paperId: number) => answerPairingRepo.getAnswerPairings(getDb(), paperId))
+  ipcMain.handle('answers:commitBindings', async (_e, paperId: number, answerPaperId: number, bindings: AnswerBindingDTO[]) => {
+    for (const b of bindings) {
+      if (b.imagePath) await fileService.verifyAnswerPng(paperId, b.questionId, b.imagePath)
+    }
+    const oldPaths = questionRepo.listQuestionsByPaper(getDb(), paperId)
+      .flatMap((q) => q.answer_image_path ? [q.answer_image_path] : [])
+    answerPairingRepo.commitAnswerBindings(getDb(), paperId, answerPaperId, bindings)
+    await fileService.removeUnusedAnswerPngs(paperId, oldPaths)
+  })
   ipcMain.handle(
     'files:saveAnswerPng',
     async (_e, paperId: number, questionId: number, data: ArrayBuffer) => {
@@ -253,7 +264,11 @@ export function registerIpc(): void {
    *  顺序同 papers:delete —— 先 DB（真值）再磁盘，磁盘失败最多留孤儿文件。
    *  返回被清掉绑定的题数，供 UI 提示。 */
   ipcMain.handle('questions:clearAnswersByPaper', async (_e, paperId: number) => {
-    const n = questionRepo.clearAnswersByPaper(getDb(), paperId)
+    const db = getDb()
+    const n = db.transaction(() => {
+      db.prepare("UPDATE answer_pairings SET segment_ids = '[]' WHERE question_id IN (SELECT id FROM questions WHERE paper_id = ?)").run(paperId)
+      return questionRepo.clearAnswersByPaper(db, paperId)
+    })()
     await fileService.deleteAnswerPngs(paperId)
     return n
   })

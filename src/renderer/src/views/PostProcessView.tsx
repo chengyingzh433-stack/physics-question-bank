@@ -40,10 +40,10 @@ import { sourcePdfUrl } from '../services/ImportService'
 import { loadPdf, renderPageRegion, type PdfDocument } from '../services/RenderService'
 import {
   renderSegmentsAtDpi,
+  createPageGeometryMap,
   composeQuestionCanvas,
   canvasToPngArrayBuffer
 } from '../services/QuestionRenderService'
-import type { PageGeom } from '../services/ColumnCropService'
 import { derivePreviewItems, type PreviewItem, type PreviewQuestion } from '../services/PostProcessService'
 import { applyTemplate } from '../services/TemplateService'
 import TemplateRulesEditor from '../components/TemplateRulesEditor'
@@ -469,11 +469,10 @@ function PostProcessView(): React.JSX.Element | null {
             }
           }
 
-          const pagesMap = new Map<number, PageGeom>()
           const pageIndexMapFinal = new Map<number, number>()
           const pgs = await window.api.getPages(pid)
+          const pagesMap = createPageGeometryMap(pgs)
           for (const p of pgs) {
-            pagesMap.set(p.id, { page_index: p.page_index, width_pt: p.width_pt ?? 0, height_pt: p.height_pt ?? 0 })
             pageIndexMapFinal.set(p.id, p.page_index)
           }
 

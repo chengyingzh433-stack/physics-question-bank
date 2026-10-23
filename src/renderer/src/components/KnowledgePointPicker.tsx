@@ -14,11 +14,14 @@ interface Props {
 export function KnowledgePointPicker({ points, value, onChange, onCreate, disabled, label = '知识点' }: Props) {
   const [search, setSearch] = useState('')
   const [busy, setBusy] = useState(false)
+  const [opened, setOpened] = useState(false)
   const term = search.trim()
   const exactMatch = points.some((point) => point.name.toLocaleLowerCase() === term.toLocaleLowerCase())
   const canCreate = Boolean(onCreate && term && !exactMatch)
   const save = async (action: () => Promise<void> | void) => {
     if (busy) return
+    // 先收起候选列表再禁用保存中的输入框，避免浮层观察隐藏尺寸时循环布局。
+    setOpened(false)
     setBusy(true)
     try { await action(); setSearch('') }
     catch (e) { notifications.show({ title: '知识点保存失败', message: String(e), color: 'red' }) }
@@ -28,6 +31,8 @@ export function KnowledgePointPicker({ points, value, onChange, onCreate, disabl
     <MultiSelect label={label} data={points.map((point) => ({ value: String(point.id), label: point.name }))}
       value={value.map(String)} onChange={(ids) => void save(() => onChange(ids.map(Number)))}
       searchable clearable hidePickedOptions size="xs" searchValue={search} onSearchChange={setSearch}
+      dropdownOpened={opened && !busy && !disabled}
+      onDropdownOpen={() => setOpened(true)} onDropdownClose={() => setOpened(false)}
       placeholder="输入前几个字查找，可多选" disabled={disabled || busy} maxDropdownHeight={210} limit={8}
       nothingFoundMessage={onCreate ? '未找到匹配项，点击输入框右侧新建' : '没有匹配的知识点'}
       rightSectionWidth={canCreate ? 92 : undefined}

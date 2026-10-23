@@ -67,6 +67,8 @@ const api: Api = {
   setAnswerImage: (questionId, imagePath, widthPx, heightPx) =>
     ipcRenderer.invoke('questions:setAnswerImage', questionId, imagePath, widthPx, heightPx),
   clearAnswersByPaper: (paperId) => ipcRenderer.invoke('questions:clearAnswersByPaper', paperId),
+  getAnswerPairings: (paperId) => ipcRenderer.invoke('answers:getPairings', paperId),
+  commitAnswerBindings: (paperId, answerPaperId, bindings) => ipcRenderer.invoke('answers:commitBindings', paperId, answerPaperId, bindings),
   // question types
   listQuestionTypes: () => ipcRenderer.invoke('types:list'),
   createQuestionType: (name) => ipcRenderer.invoke('types:create', name),

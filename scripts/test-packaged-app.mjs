@@ -1,7 +1,7 @@
-// 验证真正的发布 EXE，所有资料和导出均位于独立临时目录。
+// 验证本机打包的 macOS .app / Windows EXE，所有资料和导出均位于独立临时目录。
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:net'
-import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdtemp, mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import assert from 'node:assert/strict'
@@ -12,7 +12,15 @@ import JSZip from 'jszip'
 const require = createRequire(import.meta.url)
 const { version } = JSON.parse(await readFile('package.json', 'utf8'))
 const release = resolve('release', version)
-const executable = join(release, 'win-unpacked', '物理教师题库管理系统.exe')
+if (!['darwin', 'win32'].includes(process.platform)) throw new Error('此发布验收支持 macOS / Windows')
+const productName = '物理教师题库管理系统'
+const macApp = join(release, process.arch === 'arm64' ? 'mac-arm64' : 'mac', `${productName}.app`, 'Contents')
+const executable = process.platform === 'darwin'
+  ? join(macApp, 'MacOS', productName)
+  : join(release, 'win-unpacked', `${productName}.exe`)
+const resources = process.platform === 'darwin' ? join(macApp, 'Resources') : join(release, 'win-unpacked', 'resources')
+const archive = join(resources, 'app.asar')
+await access(executable)
 const scratch = await mkdtemp(join(tmpdir(), 'question-bank-packaged-'))
 const profile = join(scratch, 'profile')
 await mkdir(profile)
@@ -85,7 +93,7 @@ try {
   const m = main.evaluate
   const r = renderer.evaluate
   // 发布入口为 ESM。用版本查询处的调试断点取得该模块的 require，避免修改发布代码。
-  const mainSource = require('@electron/asar').extractFile(join(release, 'win-unpacked/resources/app.asar'), join('out', 'main', 'index.js')).toString()
+  const mainSource = require('@electron/asar').extractFile(archive, 'out/main/index.js').toString()
   const lines = mainSource.split('\n')
   const versionLine = lines.findIndex((line) => line.includes('"app:version"'))
   assert.ok(versionLine >= 0)
@@ -110,7 +118,7 @@ try {
   const info = await m(`({ version: ${electron}.app.getVersion(), packaged: ${electron}.app.isPackaged, data: ${electron}.app.getPath('userData') })`)
   assert.equal(info.version, version)
   assert.equal(info.packaged, true)
-  assert.equal(resolve(info.data), resolve(profile))
+  assert.equal(await realpath(info.data), await realpath(profile))
   async function waitFor(expression) {
     for (let i = 0; i < 100; i++) {
       if (await r(expression)) return
@@ -248,6 +256,16 @@ try {
   await waitFor('Array.from(document.querySelectorAll("canvas")).some(c => c.width > 100 && c.height > 100)')
   const screenshot = await renderer.send('Page.captureScreenshot', { format: 'png' })
   await writeFile(join(release, '打包版PDF渲染检查.png'), Buffer.from(screenshot.data, 'base64'))
+  if (process.platform === 'darwin') {
+    // Mac 关闭最后一个窗口后保持进程；Dock 激活应重新建立窗口及 preload。
+    renderer.close()
+    await m(`new Promise(resolve => { const win = ${electron}.BrowserWindow.getAllWindows()[0]; win.once('closed', resolve); win.close() })`)
+    assert.equal(await m(`${electron}.BrowserWindow.getAllWindows().length`), 0)
+    await m(`new Promise(resolve => { ${electron}.app.once('browser-window-created', (_e, win) => win.webContents.once('did-finish-load', resolve)); ${electron}.app.emit('activate') })`)
+    renderer = await connect(await endpoint(rendererPort))
+    assert.equal(await renderer.evaluate('window.api.getAppVersion()'), version)
+    assert.equal(await m(`${electron}.BrowserWindow.getAllWindows().length`), 1)
+  }
   // 重复双击必须唤回旧窗口，而不是出现第二个窗口。
   const second = spawn(executable, [`--user-data-dir=${profile}`], { env, windowsHide: true, stdio: 'ignore' })
   const secondExit = await Promise.race([
@@ -257,16 +275,17 @@ try {
   assert.equal(secondExit, 0)
   assert.equal(await m(`${electron}.BrowserWindow.getAllWindows().length`), 1)
   await m('smokeDb.close()')
-  const files = require('@electron/asar').listPackage(join(release, 'win-unpacked/resources/app.asar'))
+  const files = require('@electron/asar').listPackage(archive)
   assert.ok(!files.some((name) => /bank-ui-smoke|bank-ui-900|path-check/.test(name)))
   assert.ok(files.some((name) => /pdf.worker.*\.mjs$/.test(name)))
-  await readFile(join(release, 'win-unpacked/resources/fonts/NotoSansSC-Regular.ttf'))
-  const report = { testedAt: new Date().toISOString(), version, executable, profile, checks: [
-    '真实发布 EXE 启动 / 原生 SQLite / preload IPC', '题图读取 / 选题入篮 / 个人题夹',
+  await readFile(join(resources, 'fonts/NotoSansSC-Regular.ttf'))
+  const report = { testedAt: new Date().toISOString(), version, platform: process.platform, arch: process.arch, executable, profile, checks: [
+    '真实打包应用启动 / 原生 SQLite / preload IPC', '题图读取 / 选题入篮 / 个人题夹',
     'PDF、PPTX 三种答案模式导出及文件结构', '打包字体 / PDF worker / 原 PDF 渲染', '重复双击只保留一个窗口', '包内排除测试脚本和截图'
   ], exports }
   report.checks.push('原生 PDF 拖放：空库/已有试卷、多文件、中文空格/大写扩展名、非 PDF 拒绝、损坏文件回滚后继续、按钮/答案导入兼容')
   report.checks.push('六册章节模板 / 重复套用不重复 / 自定义子章节 / 知识点去重及保存回显 / 按上级章节与知识点组合筛选')
+  if (process.platform === 'darwin') report.checks.push('关闭最后一个窗口后进程保留，Dock 激活恢复窗口和 preload')
   await writeFile(join(release, 'packaged-test-report.json'), JSON.stringify(report, null, 2))
   console.log(JSON.stringify(report, null, 2))
 } catch (error) {

@@ -10,11 +10,11 @@ import {
   IconFileImport, IconArrowLeft, IconArrowRight,
   IconCheck, IconX, IconRefresh, IconTrash, IconFileX, IconAlertCircle
 } from '@tabler/icons-react'
-import type { QuestionDTO, SegmentDTO, PaperDTO, PageDTO } from '@shared/types'
+import type { AnswerBindingDTO, QuestionDTO, SegmentDTO, PaperDTO, PageDTO } from '@shared/types'
 import { sourcePdfUrl } from '../services/ImportService'
 import { loadPdf, renderPageRegion, type PdfDocument } from '../services/RenderService'
 import {
-  renderSegmentsAtDpi, composeQuestionCanvas, canvasToPngArrayBuffer
+  renderSegmentsAtDpi, composeQuestionCanvas, canvasToPngArrayBuffer, createPageGeometryMap
 } from '../services/QuestionRenderService'
 import {
   deriveAnswerItems, autoPairAnswers,
@@ -49,7 +49,7 @@ function AnswerMatchView(): React.JSX.Element | null {
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // 配对 state（只存 React state，不落库）
+  // 编辑中的配对；确认后与答案图元数据一起保存。
   const [pairings, setPairings] = useState<AnswerPairing[]>([])
   // 当前选中哪道题（用于手动调整配对）
   const [selectedQid, setSelectedQid] = useState<number | null>(null)
@@ -62,10 +62,11 @@ function AnswerMatchView(): React.JSX.Element | null {
       return
     }
     try {
-      const [p, qs, pgs] = await Promise.all([
+      const [p, qs, pgs, savedPairings] = await Promise.all([
         window.api.getPaper(pid),
         window.api.listQuestionsByPaper(pid),
-        window.api.getPages(pid)
+        window.api.getPages(pid),
+        window.api.getAnswerPairings(pid)
       ])
       setPaper(p)
       setQuestions(qs)
@@ -89,11 +90,15 @@ function AnswerMatchView(): React.JSX.Element | null {
           map.set(aq.id, rows.map((r) => r.segment_id))
         }
         setAnswerSegmentMap(map)
+        const saved = new Map(savedPairings.map((pairing) => [pairing.questionId, pairing]))
+        const items = deriveAnswerItems(asegs, map, new Map(apgs.map((page) => [page.id, page.page_index])))
+        setPairings(autoPairAnswers(qs.map((q) => q.id), items).map((pairing) => saved.get(pairing.questionId) ?? pairing))
       } else {
         // 答案卷已删除，必须清空旧状态，否则旧片段数据残留会误判为状态3
         setAnswerSegments([])
         setAnswerPages([])
         setAnswerSegmentMap(new Map())
+        setPairings([])
       }
     } catch (e) {
       setError('加载数据失败：' + String(e))
@@ -141,12 +146,6 @@ function AnswerMatchView(): React.JSX.Element | null {
     () => deriveAnswerItems(answerSegments, answerSegmentMap, answerPageIndexMap),
     [answerSegments, answerSegmentMap, answerPageIndexMap]
   )
-
-  // 当题目或答案片段变化时，重算自动配对
-  useEffect(() => {
-    if (questions.length === 0) return
-    setPairings(autoPairAnswers(questions.map((q) => q.id), answerItems))
-  }, [questions, answerItems])
 
   // 导入答案 PDF
   const handleImportAnswer = useCallback(async () => {
@@ -251,17 +250,18 @@ function AnswerMatchView(): React.JSX.Element | null {
 
   // 确认绑定：渲染答案图并写库
   const handleConfirm = useCallback(async () => {
-    if (!answerDoc || !paper) return
+    if (!answerDoc || !paper || !answerPaper) return
     setBusy(true)
     setError(null)
     try {
       const dpiStr = await window.api.getSetting('export_dpi', '300')
       const dpi = parseInt(dpiStr, 10) || 300
 
-      const answerPageMap = new Map(answerPages.map((p) => ({
-        id: p.id, page_index: p.page_index, width_pt: p.width_pt ?? 0, height_pt: p.height_pt ?? 0
-      })).map((p) => [p.id, p]))
+      const answerPageMap = createPageGeometryMap(answerPages)
 
+      const bindings: AnswerBindingDTO[] = pairings.map((p) => ({
+        ...p, imagePath: null, widthPx: null, heightPx: null
+      }))
       const todo = pairings.filter((p) => p.segmentIds.length > 0)
       setProgress({ current: 0, total: todo.length })
 
@@ -279,20 +279,14 @@ function AnswerMatchView(): React.JSX.Element | null {
         const buf = await canvasToPngArrayBuffer(canvas)
         // 答案图存在题目卷目录下（pid = 题目卷 id）
         const { relPath } = await window.api.saveAnswerPng(pid, pairing.questionId, buf)
-        await window.api.setAnswerImage(pairing.questionId, relPath, widthPx, heightPx)
+        Object.assign(bindings.find((b) => b.questionId === pairing.questionId)!, {
+          imagePath: relPath, widthPx, heightPx
+        })
         canvas.width = 0; canvas.height = 0
         rendered.forEach((r) => { r.canvas.width = 0; r.canvas.height = 0 })
       }
 
-      // 已有答案但本次配对为空的题：解绑（清除旧答案）
-      for (const pairing of pairings) {
-        if (pairing.segmentIds.length === 0) {
-          const q = questions.find((q) => q.id === pairing.questionId)
-          if (q?.answer_image_path != null) {
-            await window.api.setAnswerImage(pairing.questionId, null, null, null)
-          }
-        }
-      }
+      await window.api.commitAnswerBindings(pid, answerPaper.id, bindings)
 
       setProgress(null)
       await reload()
@@ -335,7 +329,7 @@ function AnswerMatchView(): React.JSX.Element | null {
     } finally {
       setBusy(false)
     }
-  }, [answerDoc, answerPages, answerSegments, pairings, questions, pid, reload])
+  }, [answerDoc, answerPaper, answerPages, answerSegments, pairings, questions, pid, reload])
 
   // paper 取不到时：有 error 就把 error 显示出来（否则永远停在"加载中…"，看起来像白屏）
   if (paper == null) {
@@ -472,7 +466,7 @@ function AnswerMatchView(): React.JSX.Element | null {
           <Button
             leftSection={<IconCheck size={14} />}
             onClick={handleConfirm}
-            disabled={busy}
+            disabled={busy || !answerDoc}
             color="violet"
           >
             确认绑定
@@ -498,7 +492,7 @@ function AnswerMatchView(): React.JSX.Element | null {
       {/* 说明文字 */}
       <Text size="xs" c="dimmed" px="md" pt="xs" style={{ flexShrink: 0 }}>
         左列为题目，右侧为答案片段。默认按序号自动配对（第1题←→第1个答案片段）。
-        点击题目行可展开手动调整：勾选/取消勾选右侧答案片段来修改绑定。
+        点击题目行可展开手动调整：勾选/取消勾选右侧答案片段来修改绑定；点击“确认绑定”后保存，重开会保留。
       </Text>
 
       {/* 主体 */}
@@ -513,7 +507,7 @@ function AnswerMatchView(): React.JSX.Element | null {
               ai.segmentIds.some((sid) => pairing.segmentIds.includes(sid))
             )
             return (
-              <Card key={pairing.questionId} shadow="xs" padding="sm" withBorder
+              <Card key={pairing.questionId} data-testid={`answer-pairing-${pairing.questionId}`} shadow="xs" padding="sm" withBorder
                 style={{ borderColor: isExpanded ? 'var(--mantine-color-violet-4)' : undefined }}
               >
                 <Group justify="space-between" wrap="nowrap">
@@ -548,6 +542,7 @@ function AnswerMatchView(): React.JSX.Element | null {
                   )}
                   <Tooltip label={isExpanded ? '收起' : '展开调整配对'}>
                     <ActionIcon
+                      aria-label={`调整第 ${q.order_in_paper} 题答案`}
                       variant="subtle"
                       color={isExpanded ? 'violet' : 'gray'}
                       onClick={() => setSelectedQid(isExpanded ? null : pairing.questionId)}
@@ -568,7 +563,14 @@ function AnswerMatchView(): React.JSX.Element | null {
                         return (
                           <Box
                             key={ai.key}
-                            onClick={() => togglePairing(pairing.questionId, ai.segmentIds)}
+                            role="checkbox" aria-label={label} aria-checked={selected}
+                            tabIndex={busy ? -1 : 0}
+                            onKeyDown={(e) => {
+                              if (!busy && (e.key === ' ' || e.key === 'Enter')) {
+                                e.preventDefault(); togglePairing(pairing.questionId, ai.segmentIds)
+                              }
+                            }}
+                            onClick={() => !busy && togglePairing(pairing.questionId, ai.segmentIds)}
                             style={{
                               border: `2px solid ${selected ? 'var(--mantine-color-violet-5)' : 'var(--mantine-color-default-border)'}`,
                               borderRadius: 'var(--mantine-radius-sm)',

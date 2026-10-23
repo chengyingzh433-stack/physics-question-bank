@@ -1,9 +1,8 @@
-import type { SegmentDTO } from '@shared/types'
+import type { PageDTO, SegmentDTO } from '@shared/types'
 import { renderPageRegionAtDpi, type PdfDocument } from './RenderService'
 import {
   computeComposedSize,
-  computeSegmentXOffset,
-  type PageGeom
+  computeSegmentXOffset
 } from './ColumnCropService'
 
 export interface RenderedSegment {
@@ -17,7 +16,15 @@ export interface PageGeomExtended {
   page_index: number
   width_pt: number
   height_pt: number
-  rotation?: number
+  rotation: number
+}
+
+/** 预览与高清出图必须使用同一旋转坐标系。 */
+export function createPageGeometryMap(pages: PageDTO[]): Map<number, PageGeomExtended> {
+  return new Map(pages.map((p) => [p.id, {
+    page_index: p.page_index, width_pt: p.width_pt ?? 0,
+    height_pt: p.height_pt ?? 0, rotation: p.rotation
+  }]))
 }
 
 /**
@@ -27,15 +34,15 @@ export interface PageGeomExtended {
 export async function renderSegmentsAtDpi(
   doc: PdfDocument,
   segments: SegmentDTO[],
-  pagesMap: Map<number, PageGeom | PageGeomExtended>,
+  pagesMap: Map<number, PageGeomExtended>,
   dpi: number,
   mergeOrderMap: Map<number, number>
 ): Promise<RenderedSegment[]> {
   const out: RenderedSegment[] = []
   for (const s of segments) {
     const page = pagesMap.get(s.page_id!)
-    if (!page) continue
-    const rotation = 'rotation' in page ? (page as PageGeomExtended).rotation ?? 0 : 0
+    if (!page) throw new Error(`找不到片段对应的 PDF 页：${s.page_id}`)
+    const rotation = page.rotation
     const { canvas, widthPx, heightPx } = await renderPageRegionAtDpi(
       doc,
       page.page_index,
