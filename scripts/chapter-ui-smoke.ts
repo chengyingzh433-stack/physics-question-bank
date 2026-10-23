@@ -14,6 +14,7 @@ app.setPath('userData', scratch)
 app.disableHardwareAcceleration()
 registerAppProtocol()
 let win: BrowserWindow
+let stage = 'startup'
 const evaluate = (expression: string) => win.webContents.executeJavaScript(expression)
 const hasText = (text: string) => `document.body.innerText.includes(${JSON.stringify(text)})`
 const visibleOptions = `Array.from(document.querySelectorAll('[role=option]')).filter(e => e.getClientRects().length)`
@@ -56,6 +57,7 @@ async function inputForLabel(label: string, index = 0): Promise<string> {
   return `document.getElementById(${JSON.stringify(id)})`
 }
 async function fillLabel(label: string, value: string, index = 0): Promise<void> {
+  stage = `fill ${label}: ${value}`
   const code = await inputForLabel(label, index)
   await waitFor(`!(${code}).disabled`)
   await evaluate(`(() => { const el = ${code}; el.scrollIntoView({ block: 'center' }); el.focus(); el.click();
@@ -71,8 +73,10 @@ async function screenshot(name: string): Promise<void> {
   await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
   writeFileSync(resolve(`out/chapter-ui-${name}.png`), (await win.webContents.capturePage()).toPNG())
 }
+let navigation = 0
 async function openRoute(hash: string): Promise<void> {
-  await win.loadFile(resolve('out/renderer/index.html'), { hash })
+  stage = `route ${hash}`
+  await win.loadFile(resolve('out/renderer/index.html'), { hash, query: { smoke: String(++navigation) } })
 }
 
 app.whenReady().then(async () => {
@@ -111,8 +115,8 @@ app.whenReady().then(async () => {
     webPreferences: { preload: resolve('out/preload/index.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false } })
   win.setMenu(null)
   const errors: string[] = []
-  win.webContents.on('console-message', (_event, level, message) => {
-    if (level === 3) { errors.push(message); console.error('Renderer:', message) }
+  win.webContents.on('console-message', ({ level, message }) => {
+    if (level === 'error') { errors.push(message); console.error('Renderer:', stage, message) }
   })
   await win.loadURL('about:blank')
   const imageData = await evaluate(`(() => {

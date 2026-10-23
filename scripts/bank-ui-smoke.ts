@@ -60,7 +60,7 @@ app.whenReady().then(async () => {
     webPreferences: { preload: resolve('out/preload/index.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false } })
   win.setMenu(null)
   const errors: string[] = []
-  win.webContents.on('console-message', (_event, level, message) => { if (level === 3) { errors.push(message); console.error('Renderer:', message) } })
+  win.webContents.on('console-message', ({ level, message }) => { if (level === 'error') { errors.push(message); console.error('Renderer:', message) } })
   await win.loadFile(resolve('out/renderer/index.html'), { hash: '/bank' })
   await waitFor(hasText('30 题 · 已选 0 题'))
   assert.equal(await evaluate("document.querySelectorAll('.bank-card').length"), 24)

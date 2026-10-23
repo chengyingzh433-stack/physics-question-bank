@@ -44,6 +44,8 @@ export interface NewPageDTO {
 }
 
 export interface Api {
+  getAnswerPairings(paperId: number): Promise<AnswerPairingDTO[]>
+  commitAnswerBindings(paperId: number, answerPaperId: number, bindings: AnswerBindingDTO[]): Promise<void>
   ping(): Promise<string>
   getAppVersion(): Promise<string>
   // papers
@@ -230,6 +232,17 @@ export interface Api {
   getDefaultStoragePath(): Promise<string>
   /** 存储位置：获取当前路径（含自定义路径） */
   getCurrentStoragePath(): Promise<string>
+}
+
+export interface AnswerPairingDTO {
+  questionId: number
+  segmentIds: number[]
+}
+
+export interface AnswerBindingDTO extends AnswerPairingDTO {
+  imagePath: string | null
+  widthPx: number | null
+  heightPx: number | null
 }
 
 export interface PaperSetItemDTO {

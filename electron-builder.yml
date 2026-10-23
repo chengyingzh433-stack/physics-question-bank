@@ -29,6 +29,12 @@
       }
     ]
   },
+  "mac": {
+    "category": "public.app-category.education",
+    "target": [{ "target": "dmg", "arch": ["arm64"] }],
+    "artifactName": "physics-question-bank-${version}-mac-${arch}.${ext}",
+    "minimumSystemVersion": "13.0"
+  },
   "nsis": {
     "artifactName": "教师题库-测试版-${version}-安装程序.${ext}",
     "installerLanguages": ["zh_CN"],

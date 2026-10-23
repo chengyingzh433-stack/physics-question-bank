@@ -2,6 +2,7 @@ import { app, protocol, net } from 'electron'
 import { join, sep, relative } from 'path'
 import { copyFile, mkdir, access, writeFile, rm, readdir, cp } from 'fs/promises'
 import { pathToFileURL } from 'url'
+import { randomUUID } from 'node:crypto'
 import { getDb } from '../storage/StorageService'
 
 /** 试卷项目根目录（可配置）。
@@ -94,6 +95,9 @@ export function registerAppProtocol(): void {
         standard: true,
         secure: true,
         supportFetchAPI: true,
+        // file:// 打包界面及 Vite 开发界面都需要读取 app:// 本地 PDF。
+        // Electron 41+ 要求显式启用跨 scheme 的 fetch/XHR。
+        corsEnabled: true,
         stream: true,
         bypassCSP: false
       }
@@ -152,11 +156,33 @@ export async function saveAnswerPng(
   data: ArrayBuffer
 ): Promise<{ relPath: string; url: string }> {
   await ensurePaperDir(paperId)
-  const filename = `a_${questionId}.png`
+  // 新图先写独立文件；整卷确认失败时不能覆盖旧绑定仍指向的图片。
+  const filename = `a_${questionId}_${randomUUID()}.png`
   const abs = join(imagesDir(paperId), filename)
   await writeFile(abs, Buffer.from(data))
   const relPath = `projects/${paperId}/images/${filename}`
   return { relPath, url: `app://projects/${paperId}/images/${filename}` }
+}
+
+export async function verifyAnswerPng(paperId: number, questionId: number, relPath: string): Promise<void> {
+  const prefix = `projects/${paperId}/images/`
+  const filename = relPath.slice(prefix.length)
+  if (!relPath.startsWith(prefix) || !new RegExp(`^a_${questionId}_[a-f0-9-]+\\.png$`).test(filename)) {
+    throw new Error('答案图路径无效')
+  }
+  await access(join(imagesDir(paperId), filename))
+}
+
+/** 仅回收本次被替换且已无题目引用的旧图；不会碰正在渲染的新文件。 */
+export async function removeUnusedAnswerPngs(paperId: number, paths: string[]): Promise<void> {
+  const prefix = `projects/${paperId}/images/`
+  for (const path of paths) {
+    if (!path.startsWith(prefix)) continue
+    const filename = path.slice(prefix.length)
+    if (!/^a_\d+(?:_[a-f0-9-]+)?\.png$/.test(filename)) continue
+    if (getDb().prepare('SELECT id FROM questions WHERE answer_image_path = ? LIMIT 1').get(path)) continue
+    await rm(join(imagesDir(paperId), filename), { force: true }).catch(() => {})
+  }
 }
 
 /**

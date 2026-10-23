@@ -53,6 +53,9 @@ if (!app.requestSingleInstanceLock()) {
       if (window.isMinimized()) window.restore()
       window.show()
       window.focus()
+    } else if (app.isReady()) {
+      // macOS 关闭最后一个窗口后应用仍在运行，重新打开也应恢复窗口。
+      createWindow()
     }
   })
 

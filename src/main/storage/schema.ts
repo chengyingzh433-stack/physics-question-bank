@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS pages (
   id INTEGER PRIMARY KEY,
   paper_id INTEGER NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
   page_index INTEGER NOT NULL, width_pt REAL, height_pt REAL,
-  column_mode INTEGER DEFAULT 1);
+  column_mode INTEGER DEFAULT 1, rotation INTEGER NOT NULL DEFAULT 0);
 
 CREATE TABLE IF NOT EXISTS column_dividers (
   id INTEGER PRIMARY KEY,
@@ -77,6 +77,33 @@ CREATE TABLE IF NOT EXISTS question_segments (
   question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
   segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
   merge_order INTEGER DEFAULT 0);
+
+-- 显式空数组表示用户已确认“无答案”，与尚未保存的自动配对区分。
+CREATE TABLE IF NOT EXISTS answer_pairings (
+  question_id INTEGER PRIMARY KEY REFERENCES questions(id) ON DELETE CASCADE,
+  answer_paper_id INTEGER NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+  segment_ids TEXT NOT NULL CHECK(json_valid(segment_ids)));
+
+-- 重裁会复用 SQLite 行号，必须在删除来源片段前作废整组关联与旧答案图。
+CREATE TRIGGER IF NOT EXISTS invalidate_answer_before_segment_delete
+BEFORE DELETE ON segments BEGIN
+  UPDATE questions SET answer_image_path = NULL, answer_width_px = NULL, answer_height_px = NULL
+    WHERE id IN (SELECT question_id FROM answer_pairings, json_each(segment_ids) WHERE value = OLD.id);
+  UPDATE answer_pairings SET segment_ids = '[]'
+    WHERE question_id IN (SELECT question_id FROM answer_pairings, json_each(segment_ids) WHERE value = OLD.id);
+END;
+CREATE TRIGGER IF NOT EXISTS invalidate_answer_before_segment_hide
+BEFORE UPDATE OF is_deleted ON segments WHEN NEW.is_deleted = 1 AND OLD.is_deleted = 0 BEGIN
+  UPDATE questions SET answer_image_path = NULL, answer_width_px = NULL, answer_height_px = NULL
+    WHERE id IN (SELECT question_id FROM answer_pairings, json_each(segment_ids) WHERE value = OLD.id);
+  UPDATE answer_pairings SET segment_ids = '[]'
+    WHERE question_id IN (SELECT question_id FROM answer_pairings, json_each(segment_ids) WHERE value = OLD.id);
+END;
+CREATE TRIGGER IF NOT EXISTS clear_answer_before_paper_delete
+BEFORE DELETE ON papers WHEN OLD.kind = 'answer' BEGIN
+  UPDATE questions SET answer_image_path = NULL, answer_width_px = NULL, answer_height_px = NULL
+    WHERE paper_id = OLD.parent_paper_id;
+END;
 
 CREATE TABLE IF NOT EXISTS question_knowledge_points (
   question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,

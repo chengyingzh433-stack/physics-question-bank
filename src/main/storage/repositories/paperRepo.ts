@@ -26,10 +26,10 @@ export function createPaper(
 export function addPages(db: DB, pages: NewPageDTO[]): void {
   if (pages.length === 0) return
   const insert = db.prepare(
-    `INSERT INTO pages (paper_id, page_index, width_pt, height_pt) VALUES (?, ?, ?, ?)`
+    `INSERT INTO pages (paper_id, page_index, width_pt, height_pt, rotation) VALUES (?, ?, ?, ?, ?)`
   )
   const tx = db.transaction((rows: NewPageDTO[]) => {
-    for (const p of rows) insert.run(p.paper_id, p.page_index, p.width_pt, p.height_pt)
+    for (const p of rows) insert.run(p.paper_id, p.page_index, p.width_pt, p.height_pt, p.rotation)
   })
   tx(pages)
 }
