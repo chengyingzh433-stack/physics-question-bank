@@ -1,5 +1,5 @@
 import { app, protocol, net } from 'electron'
-import { join, sep, relative } from 'path'
+import { join, sep, relative, isAbsolute } from 'path'
 import { copyFile, mkdir, access, writeFile, rm, readdir, cp } from 'fs/promises'
 import { pathToFileURL } from 'url'
 import { randomUUID } from 'node:crypto'
@@ -120,10 +120,22 @@ export function handleAppProtocol(): void {
     }
     const fsPath = join(root, ...parts.slice(1))
     // 防止路径穿越：确保最终路径在 root 之下
-    if (!fsPath.startsWith(root)) {
+    const fromRoot = relative(root, fsPath)
+    if (!fromRoot || fromRoot === '..' || fromRoot.startsWith(`..${sep}`) || isAbsolute(fromRoot)) {
       return new Response('Forbidden', { status: 403 })
     }
-    return net.fetch(pathToFileURL(fsPath).href)
+    const response = await net.fetch(pathToFileURL(fsPath).href)
+    const headers = new Headers(response.headers)
+    const origin = request.headers.get('origin')
+    const devUrl = process.env['ELECTRON_RENDERER_URL']
+    const devOrigin = devUrl ? new URL(devUrl).origin : null
+    // 编辑器从原题图裁取配图时需读取 canvas 像素。仅向本应用的
+    // file: 页面和开发页面开放跨源图片读取，不允许任意网站读取题库。
+    if (origin === 'null' || (devOrigin != null && origin === devOrigin)) {
+      headers.set('Access-Control-Allow-Origin', origin)
+      headers.set('Vary', 'Origin')
+    }
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
   })
 }
 

@@ -1,0 +1,15 @@
+.basket-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 20px; align-items: start; }
+.basket-settings { position: sticky; top: 76px; }
+.basket-question-thumbnail { max-height: 230px; overflow: auto; padding: 12px; border-radius: 6px; background: white; color: #20252c; }
+.basket-question-thumbnail .basket-original-image { max-width: 440px; }
+.basket-original-image { display: block; max-width: 100%; height: auto; background: white; }
+.basket-preview-scroll { overflow: auto; background: #e9ecef; padding: 16px; }
+.basket-paper-preview { box-sizing: border-box; width: 210mm; min-height: 297mm; margin: 0 auto; background: white; color: #111; line-height: 1.5; box-shadow: 0 2px 8px #0002; overflow-wrap: break-word; }
+.basket-paper-preview h1 { margin: 0 0 12pt; font-size: 20pt; text-align: center; }
+.basket-paper-preview h2 { font-size: 14pt; margin: 12pt 0 8pt; }
+.basket-paper-subtitle { text-align: center; white-space: pre-wrap; }
+.basket-preview-number { font-weight: 700; margin: 6pt 0; }
+.basket-preview-answer { margin-top: 10pt; }
+.basket-preview-answer > p { font-weight: 600; font-size: .9em; }
+.basket-preview-new-page { border-top: 1px dashed #a0a5ae; padding-top: 24pt; margin-top: 24pt; }
+@media (max-width: 1050px) { .basket-workspace { grid-template-columns: minmax(0, 1fr); } .basket-settings { position: static; grid-row: 1; } }

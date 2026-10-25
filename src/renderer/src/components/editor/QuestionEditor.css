@@ -1,0 +1,40 @@
+.question-editor-view { min-height: 100vh; background: var(--mantine-color-body); }
+.question-editor-header { position: sticky; top: 0; z-index: 20; border-radius: 0; }
+.question-editor-columns { display: grid; grid-template-columns: minmax(240px, .85fr) minmax(400px, 1.15fr); gap: 16px; align-items: start; }
+.original-panel, .editable-panel { min-width: 0; }
+.original-panel { position: sticky; top: 108px; max-height: calc(100vh - 135px); overflow: auto; }
+.original-question-image { display: block; width: 100%; height: auto; background: white; }
+.editor-toolbar { padding: 8px; border: 1px solid var(--mantine-color-default-border); border-radius: 6px; background: var(--mantine-color-default); }
+.editor-paper { padding: 20px 24px; border: 1px solid #d9dfe8; border-radius: 6px; background: white; color: #1b2433; min-height: 190px; overflow-wrap: anywhere; }
+.editor-paper.disabled { opacity: .72; }
+.editor-paper .tiptap { min-height: 250px; outline: none; line-height: 1.8; font-size: 16px; }
+.editor-paper .tiptap p, .editable-document-preview p { margin: .55em 0; min-height: 1.3em; white-space: pre-wrap; }
+.editor-paper .tiptap > p:first-child, .editable-document-preview > p:first-child { margin-top: 0; }
+.editor-paper .tiptap p.is-editor-empty:first-child::before { content: '在此输入题目内容…'; color: #8491a4; pointer-events: none; float: left; height: 0; }
+.editable-document-preview { line-height: 1.8; font-size: inherit; color: inherit; }
+.editable-image, .editor-image-node figure { margin: 16px 0; }
+.editable-image img, .editor-image-node img { max-width: 100%; height: auto; vertical-align: middle; }
+.editable-image figcaption, .editor-image-node figcaption { font-size: .85em; color: #5f6b7a; white-space: pre-wrap; padding-top: 4px; }
+.editor-image-node { border: 2px solid transparent; border-radius: 5px; cursor: pointer; }
+.editor-image-node.selected { border-color: #228be6; background: #edf6ff; }
+.editor-math-node { display: inline-block; border: 1px solid transparent; border-radius: 3px; padding: 0 2px; cursor: pointer; }
+.editor-math-node.selected { border-color: #228be6; background: #edf6ff; }
+.image-controls { padding: 10px; background: var(--mantine-color-default); border-radius: 6px; }
+.question-math { display: inline-block; max-width: 100%; vertical-align: middle; overflow-x: auto; overflow-y: hidden; padding: 4px 1px; }
+.question-math-fallback, .missing-image { color: #b84120; }
+.formula-field-host math-field { display: block; min-height: 84px; padding: 12px; font-size: 25px; border: 1px solid var(--mantine-color-default-border); border-radius: 6px; background: white; color: #1b2433; }
+.formula-preview { min-height: 70px; background: white; color: #1b2433; padding: 16px; border: 1px dashed #d9dfe8; font-size: 23px; text-align: center; }
+.crop-scroll { max-height: 58vh; overflow: auto; padding: 6px; background: #e9edf4; }
+.crop-surface { position: relative; display: block; width: 100%; user-select: none; touch-action: none; cursor: crosshair; line-height: 0; }
+.crop-surface > img { display: block; width: 100%; height: auto; pointer-events: none; background: white; }
+.crop-selection { position: absolute; border: 2px solid #228be6; background: rgba(34,139,230,.16); pointer-events: none; }
+body { --keyboard-zindex: 500; }
+@media (max-width: 1050px) {
+  .question-editor-columns { grid-template-columns: minmax(200px, .7fr) minmax(360px, 1.3fr); }
+  .editor-paper { padding: 14px; }
+}
+@media (max-width: 780px) {
+  .question-editor-columns { grid-template-columns: 1fr; }
+  .original-panel { position: static; max-height: 360px; }
+  .question-editor-header { position: static; }
+}

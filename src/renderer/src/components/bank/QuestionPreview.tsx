@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Badge, Button, Group, Modal, Stack, Text, Divider } from '@mantine/core'
 import type { BankQuestionDTO, KnowledgePointDTO } from '@shared/types'
+import { useNavigate } from 'react-router-dom'
+import { assetUrl } from '@shared/editable'
 
 interface Props {
   question: BankQuestionDTO | null
@@ -15,6 +17,7 @@ interface Props {
 }
 
 export function QuestionPreview({ question, labels, knowledgePoints, inBasket, busy, onClose, onBasket, onPrevious, onNext }: Props) {
+  const navigate = useNavigate()
   const [kpIds, setKpIds] = useState<number[]>([])
   const [error, setError] = useState('')
   useEffect(() => {
@@ -40,6 +43,7 @@ export function QuestionPreview({ question, labels, knowledgePoints, inBasket, b
         </Button>
       </Group>
       <Group gap="xs">
+        <Button size="xs" variant="light" disabled={busy} onClick={() => navigate(`/questions/${question.id}/edit?from=/bank`)}>编辑题目与答案</Button>
         {labels.map((label, i) => <Badge key={`${i}-${label}`} variant="light">{label}</Badge>)}
         {kpIds.map((id) => <Badge key={id} variant="outline">{knowledgePoints.find((kp) => kp.id === id)?.name ?? `知识点 ${id}`}</Badge>)}
       </Group>
@@ -48,7 +52,7 @@ export function QuestionPreview({ question, labels, knowledgePoints, inBasket, b
         alt={`第 ${question.order_in_paper} 题完整题图`} style={{ width: '100%', background: 'white' }} />
       <Divider label="参考答案" />
       {question.answer_image_path
-        ? <img src={`app://projects/${question.paper_id}/images/a_${question.id}.png`}
+        ? <img src={assetUrl(question.answer_image_path)}
           alt="参考答案" style={{ width: '100%', background: 'white' }} />
         : <Text size="sm" c="dimmed">未匹配答案</Text>}
     </Stack>}
