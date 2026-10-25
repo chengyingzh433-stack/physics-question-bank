@@ -16,8 +16,8 @@ export interface BuiltFilter {
  * 年份/出处走 effective 口径（M13）：单题覆盖优先于试卷默认，调用方须 JOIN papers p。
  */
 export function buildQuestionFilter(c: QuestionFilterCriteria): BuiltFilter {
-  // p.kind = 'paper' 确保答案卷的 question 行不进题库（M14.5 B2）
-  const conditions: string[] = ['q.image_path IS NOT NULL', "p.kind = 'paper'"]
+  // 旧 PDF 题图与已发布录题进入题库；答案卷及待校对录题保持隐藏。
+  const conditions: string[] = ['q.image_path IS NOT NULL', "(p.kind = 'paper' OR (p.kind = 'intake' AND p.status = 'done'))"]
   const params: (string | number)[] = []
 
   if (c.type_id != null) {

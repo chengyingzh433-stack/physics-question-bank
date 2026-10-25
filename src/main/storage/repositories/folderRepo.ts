@@ -21,7 +21,7 @@ export function validateBankQuestionIds(db: DB, ids: number[]): number[] {
   }
   const unique = [...new Set(ids)]
   const check = db.prepare(`SELECT q.id FROM questions q JOIN papers p ON p.id = q.paper_id
-    WHERE q.id = ? AND q.image_path IS NOT NULL AND p.kind = 'paper'`)
+    WHERE q.id = ? AND q.image_path IS NOT NULL AND (p.kind = 'paper' OR (p.kind = 'intake' AND p.status = 'done'))`)
   for (const id of unique) {
     if (!check.get(id)) throw new Error(`题目 ${id} 不存在或尚未入库，请刷新后重试`)
   }
@@ -32,7 +32,7 @@ export function listFolders(db: DB): QuestionFolderDTO[] {
   return db.prepare(`SELECT f.id, f.name,
     (SELECT COUNT(*) FROM question_folder_items fi JOIN questions q ON q.id = fi.question_id
       JOIN papers p ON p.id = q.paper_id
-      WHERE fi.folder_id = f.id AND q.image_path IS NOT NULL AND p.kind = 'paper') AS question_count
+      WHERE fi.folder_id = f.id AND q.image_path IS NOT NULL AND (p.kind = 'paper' OR (p.kind = 'intake' AND p.status = 'done'))) AS question_count
     FROM question_folders f ORDER BY f.id`).all() as QuestionFolderDTO[]
 }
 

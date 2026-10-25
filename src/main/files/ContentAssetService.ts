@@ -21,7 +21,7 @@ function checkDimensions(width: number, height: number): void {
 }
 
 /** 解码前检查文件类型和头部尺寸，避免先分配不受控的大图内存。 */
-function inspectImage(data: Buffer): void {
+export function inspectImage(data: Buffer): void {
   if (!data.length || data.length > MAX_BYTES) throw new Error('图片文件须小于 20 MB')
   if (data.length >= 24 && data.subarray(0, 8).equals(PNG_SIGNATURE)) {
     if (data.toString('ascii', 12, 16) !== 'IHDR') throw new Error('PNG 文件头无效')

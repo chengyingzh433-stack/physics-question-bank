@@ -2,6 +2,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect } from 'react'
 import { LibraryLayout } from './components/AppLayout/LibraryLayout'
 import { WorkflowLayout } from './components/AppLayout/WorkflowLayout'
+import IntakeView from './views/IntakeView'
 import HomeView from './views/HomeView'
 import CropView from './views/CropView'
 import PostProcessView from './views/PostProcessView'
@@ -34,6 +35,8 @@ function App(): React.JSX.Element {
         {/* 库区:常驻侧边导航 */}
         <Route element={<LibraryLayout />}>
           <Route path="/" element={<ErrorBoundary><HomeView /></ErrorBoundary>} />
+          <Route path="/intake" element={<ErrorBoundary><IntakeView /></ErrorBoundary>} />
+          <Route path="/intake/:draftId" element={<ErrorBoundary><IntakeView /></ErrorBoundary>} />
           <Route path="/templates" element={<ErrorBoundary><TemplateView /></ErrorBoundary>} />
           <Route path="/bank" element={<ErrorBoundary><BankView /></ErrorBoundary>} />
           <Route path="/basket" element={<ErrorBoundary><BasketView /></ErrorBoundary>} />

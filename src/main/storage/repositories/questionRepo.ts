@@ -12,7 +12,7 @@ function hasContentTable(db: DB): boolean {
 
 function hasProtectedContent(db: DB, questionId: number): boolean {
   // Fixed table names only; old databases may not yet have the OCR migration.
-  for (const table of ['question_contents', 'ocr_jobs', 'ocr_recovery_drafts']) {
+  for (const table of ['question_contents', 'ocr_jobs', 'ocr_recovery_drafts', 'intake_drafts']) {
     if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table) &&
       db.prepare(`SELECT 1 FROM ${table} WHERE question_id = ? LIMIT 1`).get(questionId)) return true
   }
@@ -104,7 +104,7 @@ export function listYearSources(db: DB): { years: number[]; sources: string[] } 
     .prepare(
       `SELECT DISTINCT COALESCE(q.year_override, p.year) AS y FROM questions q
        JOIN papers p ON p.id = q.paper_id
-       WHERE q.image_path IS NOT NULL AND p.kind = 'paper'
+       WHERE q.image_path IS NOT NULL AND (p.kind = 'paper' OR (p.kind = 'intake' AND p.status = 'done'))
          AND COALESCE(q.year_override, p.year) IS NOT NULL
        ORDER BY y DESC`
     )
@@ -113,7 +113,7 @@ export function listYearSources(db: DB): { years: number[]; sources: string[] } 
     .prepare(
       `SELECT DISTINCT COALESCE(q.source_override, p.source) AS s FROM questions q
        JOIN papers p ON p.id = q.paper_id
-       WHERE q.image_path IS NOT NULL AND p.kind = 'paper'
+       WHERE q.image_path IS NOT NULL AND (p.kind = 'paper' OR (p.kind = 'intake' AND p.status = 'done'))
          AND COALESCE(q.source_override, p.source) IS NOT NULL
          AND COALESCE(q.source_override, p.source) <> ''
        ORDER BY s ASC`

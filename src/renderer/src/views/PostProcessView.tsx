@@ -156,6 +156,7 @@ function PostProcessView(): React.JSX.Element | null {
 
   const reloadAll = useCallback(async () => {
     const paperRow = await window.api.getPaper(pid)
+    if (paperRow?.kind === 'intake') throw new Error('这道题来自录题工作台，请在录题工作台或题库中编辑。')
     setPaperStatus(paperRow?.status ?? null)
     setPaper(
       paperRow

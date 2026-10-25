@@ -10,6 +10,7 @@ import { OcrWorkspace } from '../components/editor/OcrWorkspace'
 import { ocrDraftFingerprint, type OcrPart } from '@shared/ocr'
 import { ocrErrorMessage } from '../components/editor/ocrMessages'
 import '../components/editor/QuestionEditor.css'
+import type { IntakeDraft } from '@shared/intake'
 import { useUnsavedNavigation } from '../components/useUnsavedNavigation'
 
 const errorMessage = ocrErrorMessage
@@ -22,8 +23,10 @@ export default function QuestionEditorView() {
   const { questionId: questionIdParam } = useParams()
   const questionId = Number(questionIdParam)
   const [search] = useSearchParams()
-  const from = search.get('from') === '/basket' ? '/basket' : '/bank'
+  const from = search.get('from') === '/intake' ? '/intake' : search.get('from') === '/basket' ? '/basket' : '/bank'
   const navigate = useNavigate()
+  const [intake, setIntake] = useState<IntakeDraft | null>(null)
+  const [intakeConfirmed, setIntakeConfirmed] = useState(false)
   const [data, setData] = useState<EditableQuestionDTO | null>(null)
   const [content, setContent] = useState<QuestionContentInput>(newQuestionContent)
   const [baseline, setBaseline] = useState('')
@@ -68,6 +71,21 @@ export default function QuestionEditorView() {
     setData(snapshot); setContent(next); setBaseline(JSON.stringify(next)); setRevision(snapshot.content?.revision ?? 0)
     setSavedAt(snapshot.content?.updatedAt ?? ''); setEditorVersion((value) => value + 1); setError(''); setPreview(false)
   }, [])
+  useEffect(() => { setIntakeConfirmed(false) }, [content, revision])
+  useEffect(() => {
+    let alive = true
+    window.api.getIntakeForQuestion(questionId).then((value) => { if (alive) setIntake(value) }).catch((e) => { if (alive) setError(errorMessage(e)) })
+    return () => { alive = false }
+  }, [questionId])
+  const publishIntake = async () => {
+    if (!intake || dirty || ocrDirty || busy || !intakeConfirmed || writeLock.current) return
+    writeLock.current = true; setSaving(true); setError('')
+    try {
+      const saved = await window.api.publishIntakeQuestion(intake.id, revision, true)
+      setIntake(saved)
+      notifications.show({ title: '已确认入库', message: '可以在题库浏览中整理标签、加入题夹或组卷篮。', color: 'green' })
+    } catch (e) { setError(errorMessage(e)) } finally { writeLock.current = false; setSaving(false) }
+  }
   const applySaved = (value: QuestionContentDTO) => {
     const next = contentInput(value)
     setContent(next); setBaseline(JSON.stringify(next)); setRevision(value.revision); setSavedAt(value.updatedAt)
@@ -169,7 +187,7 @@ export default function QuestionEditorView() {
   return <div className="question-editor-view">
     <Paper className="question-editor-header" withBorder p="md">
       <Group justify="space-between" wrap="wrap">
-        <Group gap="sm"><Button variant="subtle" leftSection={<IconArrowLeft size={16} />} disabled={busy} onClick={leave}>返回{from === '/basket' ? '组卷篮' : '题库'}</Button>
+        <Group gap="sm"><Button variant="subtle" leftSection={<IconArrowLeft size={16} />} disabled={busy} onClick={leave}>返回{from === '/intake' ? '录题工作台' : from === '/basket' ? '组卷篮' : '题库'}</Button>
           <div><Title order={3}>可编辑题目</Title><Text size="xs" c="dimmed">{data ? `${data.question.paper_name} · 第 ${data.question.order_in_paper ?? '—'} 题 · #${questionId}` : '读取题目内容'}</Text></div></Group>
         <Group gap="xs"><Badge color={dirty ? 'orange' : 'gray'} variant="light">{dirty ? '有未保存修改' : revision ? `已保存 · 版本 ${revision}` : '尚未保存编辑内容'}</Badge>
           <Button variant="default" disabled={!data || busy} leftSection={<IconHistory size={16} />} onClick={() => setHistoryOpen(true)}>历史版本</Button>
@@ -181,6 +199,17 @@ export default function QuestionEditorView() {
         {data && /版本|其他窗口|OCR_REVISION_CONFLICT/.test(error) && <Button mt="sm" variant="light" disabled={busy} onClick={() => void protectAndReload()}>保留完整草稿并加载最新版本</Button>}
         {!data && <Button mt="sm" variant="light" onClick={() => setReload((value) => value + 1)}>重新读取</Button>}</Alert>}
       {data && <>
+        {intake && <Alert color={intake.status === 'published' ? 'green' : 'orange'} title={intake.status === 'published' ? '此题已入库' : '录题草稿 · 完成校对后确认入库'}>
+          <Text size="sm">题干、答案与配图已汇入当前编辑稿。可使用下方 Doc2X 识别，再对照原稿校对；也可直接手工修改并保存。</Text>
+          <Group mt="sm"><Button size="xs" variant="default" disabled={busy || dirty || ocrDirty} onClick={() => navigate(`/intake/${intake.id}`)}>查看原稿与组成部分</Button>
+            {intake.status === 'published' && <Button size="xs" variant="light" disabled={busy || dirty || ocrDirty} onClick={() => navigate('/bank')}>前往题库</Button>}</Group>
+          {intake.status === 'reviewing' && <Group mt="sm" align="end">
+            <Checkbox label="我已核对题干、选项、答案和配图，确认这道题可以入库" checked={intakeConfirmed}
+              disabled={busy || dirty || ocrDirty} onChange={(e) => setIntakeConfirmed(e.currentTarget.checked)} />
+            <Button disabled={busy || dirty || ocrDirty || !intakeConfirmed} onClick={() => void publishIntake()}>确认入库</Button>
+            {(dirty || ocrDirty) && <Text size="xs">请先保存编辑稿和识别候选。</Text>}
+          </Group>}
+        </Alert>}
         <Alert variant="light" color="blue">原图始终保留。可以手工编辑，也可按需使用下方云识别获得候选稿。选择“可编辑内容”并保存后，Word 导出才使用编辑稿。</Alert>
         <Tabs value={tab} onChange={(value) => { if (!busy && value) setTab(value as 'question' | 'answer') }}>
           <Tabs.List><Tabs.Tab value="question" disabled={busy}>题干</Tabs.Tab><Tabs.Tab value="answer" disabled={busy}>答案与解析</Tabs.Tab></Tabs.List>
@@ -221,7 +250,7 @@ export default function QuestionEditorView() {
             </Stack>
           </Paper>
         </div>
-        <OcrWorkspace key={questionId} data={data} part={tab} content={content} revision={revision} savedContent={savedContent}
+        <OcrWorkspace key={questionId} initiallyExpanded={from === '/intake'} data={data} part={tab} content={content} revision={revision} savedContent={savedContent}
           disabled={saving || editorBusy} currentDraft={currentDraft} onApplyDraft={receiveDraft} onAssets={receiveAssets}
           onSourceSnapshot={receiveSourceSnapshot} onReloadSaved={receiveReloadSaved} onDirty={setOcrDirty} onProtectCurrentDraft={setOcrProtecting} />
       </>}

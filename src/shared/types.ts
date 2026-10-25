@@ -1,13 +1,14 @@
 // 主进程与渲染进程共享的类型契约（IPC DTO、领域模型）。
 import type { EditableApi } from './editable'
 import type { OcrApi } from './ocr'
+import type { IntakeApi } from './intake'
 import type { UpdateApi } from './updates'
 
 /** 试卷状态机：导入中→裁切中→后期处理中→已入库 */
 export type PaperStatus = 'importing' | 'cropping' | 'processing' | 'done'
 
 /** 试卷种类（M14）：题目卷 或 挂在题目卷下的答案卷。 */
-export type PaperKind = 'paper' | 'answer'
+export type PaperKind = 'paper' | 'answer' | 'intake'
 
 export interface PaperDTO {
   id: number
@@ -20,7 +21,7 @@ export interface PaperDTO {
   year: number | null
   /** 试卷默认出处（M13），如"新课标 I 卷"。题目未覆盖时继承此值。 */
   source: string | null
-  /** 'paper'=题目卷，'answer'=答案卷（M14）。 */
+  /** paper=PDF 题目卷，answer=答案卷，intake=录题工作台的独立题目。 */
   kind: PaperKind
   /** 答案卷指向的题目卷 id；题目卷为 null（M14）。 */
   parent_paper_id: number | null
@@ -46,7 +47,7 @@ export interface NewPageDTO {
   rotation: number
 }
 
-export interface Api extends EditableApi, OcrApi, UpdateApi {
+export interface Api extends EditableApi, OcrApi, UpdateApi, IntakeApi {
   getAnswerPairings(paperId: number): Promise<AnswerPairingDTO[]>
   commitAnswerBindings(paperId: number, answerPaperId: number, bindings: AnswerBindingDTO[]): Promise<void>
   ping(): Promise<string>
@@ -59,7 +60,7 @@ export interface Api extends EditableApi, OcrApi, UpdateApi {
   /** 导入试卷。M14: options.kind='answer' + parentPaperId 时建答案卷。 */
   importPaper(
     name: string,
-    options?: { kind?: PaperKind; parentPaperId?: number | null }
+    options?: { kind?: Exclude<PaperKind, 'intake'>; parentPaperId?: number | null }
   ): Promise<PaperDTO | null>
   /** 取某题目卷的答案卷（M14）。无则 null。 */
   getAnswerPaper(parentPaperId: number): Promise<PaperDTO | null>

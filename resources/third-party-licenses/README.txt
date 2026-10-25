@@ -32,3 +32,11 @@ https://github.com/chengyingzh433-stack/physics-question-bank
 源码仓库提供 package-lock.json、electron-builder.yml 与构建脚本；
 在 Node.js 24 环境 npm ci 后，npm run build 编译，npm run dist:mac 制作 Mac 包。
 本轮未改写上述第三方组件源码。
+
+M21 多来源录题新增本地组件：
+docx-preview 0.4.1 (Apache-2.0) https://github.com/VolodymyrBaydalka/docxjs
+html-to-image 1.11.13 (MIT) https://github.com/bubkoo/html-to-image
+JSZip 3.10.1（按 MIT 许可使用）https://github.com/Stuk/jszip
+对应许可与 JSZip 运行时依赖说明见 docx-preview-Apache-2.0.txt、
+html-to-image-MIT.txt、jszip-LICENSE.markdown、M21-NOTICES.txt。
+上述依赖均未经修改；DOCX 预览与组题快照在本机处理。
