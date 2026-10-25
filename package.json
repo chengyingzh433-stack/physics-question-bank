@@ -1,6 +1,6 @@
 {
   "name": "physics-question-bank",
-  "version": "1.1.0-beta.6",
+  "version": "1.1.0-beta.7",
   "description": "物理教师题库管理系统",
   "main": "./out/main/index.js",
   "author": "cyz",
@@ -23,7 +23,8 @@
     "test": "vitest run",
     "test:bank-ui": "node scripts/run-bank-ui-smoke.mjs",
     "test:chapters-ui": "node scripts/run-chapter-ui-smoke.mjs",
-    "test:answers-ui": "node scripts/run-answer-ui-smoke.mjs"
+    "test:answers-ui": "node scripts/run-answer-ui-smoke.mjs",
+    "release:checksums": "node scripts/write-release-checksums.mjs"
   },
   "dependencies": {
     "@mantine/core": "^7.17.8",

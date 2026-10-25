@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initDatabase } from './storage/StorageService'
 import { registerIpc } from './ipc'
 import { registerAppProtocol, handleAppProtocol } from './files/FileService'
+import { initializeUpdates } from './updates/UpdateService'
 
 // scheme 必须在 app ready 之前注册
 registerAppProtocol()
@@ -83,6 +84,8 @@ app.whenReady().then(() => {
   })
 
   createWindow()
+
+  initializeUpdates()
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

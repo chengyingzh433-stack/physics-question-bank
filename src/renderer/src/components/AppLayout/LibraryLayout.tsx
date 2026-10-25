@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   AppShell, Group, NavLink, Badge, ActionIcon, Text,
   useMantineColorScheme, Drawer, Select, Button, Stack, Divider,
@@ -21,6 +21,8 @@ import {
 } from '@tabler/icons-react'
 import { Link, useLocation, Outlet } from 'react-router-dom'
 import { useBasketCount } from '../useBasketCount'
+import { SoftwareUpdateDialog } from '../updates/SoftwareUpdateDialog'
+import { useSoftwareUpdates } from '../updates/useSoftwareUpdates'
 
 const NAV = [
   { to: '/', label: '主页', icon: IconHome2 },
@@ -44,10 +46,28 @@ export function LibraryLayout() {
   useEffect(() => { window.api.getAppVersion().then(setVersion).catch(() => {}) }, [])
   const [mobileOpen, { toggle }] = useDisclosure()
   const [settingsOpen, { open: openSettings, close: closeSettings }] = useDisclosure(false)
+  const [updatesOpen, { open: openUpdates, close: closeUpdates }] = useDisclosure(false)
+  const updates = useSoftwareUpdates(updatesOpen)
+  const updateState = updates.state
+  const notifiedVersions = useRef(new Set<string>())
   const [dpi, setDpi] = useState<string>('300')
   const [storagePath, setStoragePath] = useState<string>('')
   const [defaultStoragePath, setDefaultStoragePath] = useState<string>('')
   const [migrating, setMigrating] = useState(false)
+
+  useEffect(() => {
+    if (!updateState?.release || !['available', 'ready'].includes(updateState.phase)) return
+    const key = `physics-bank-update-notified:${updateState.currentVersion}:${updateState.release.version}`
+    if (notifiedVersions.current.has(key)) return
+    try { if (sessionStorage.getItem(key)) return } catch { /* In-memory deduplication still works. */ }
+    notifiedVersions.current.add(key)
+    try { sessionStorage.setItem(key, '1') } catch { /* Notifications do not require persistent storage. */ }
+    if (!updatesOpen) notifications.show({ id: 'software-update-available', title: '有新版本可用',
+      message: `${updateState.release.version} 已发布，可从右上角“软件更新”查看。`, color: 'blue', autoClose: 6500 })
+  }, [updateState?.phase, updateState?.release?.version, updateState?.currentVersion, updatesOpen])
+
+  const updateLabel = updateState?.phase === 'downloading' ? '更新下载中' : updateState?.phase === 'ready' ? '更新待安装' : '软件更新'
+  const updateAvailable = updateState?.phase === 'available' || updateState?.phase === 'ready'
 
   // 加载当前 DPI 设置和存储路径
   useEffect(() => {
@@ -121,6 +141,9 @@ export function LibraryLayout() {
             {version && <Badge variant="light" size="sm">{version.includes('beta') ? '测试版 ' : ''}{version}</Badge>}
           </Group>
           <Group gap="xs">
+            <Button size="xs" variant={updateAvailable ? 'light' : 'subtle'} leftSection={<IconRefresh size={15} />}
+              rightSection={updateAvailable ? <Badge size="xs" variant="filled">新</Badge> : undefined}
+              onClick={openUpdates} aria-label={updateAvailable ? '软件更新，有新版本可用' : '软件更新'}>{updateLabel}</Button>
             <ActionIcon
               variant="subtle"
               onClick={openSettings}
@@ -174,6 +197,10 @@ export function LibraryLayout() {
         <div style={{ position: 'relative' }}>
           <LoadingOverlay visible={migrating} overlayProps={{ blur: 2 }} />
           <Stack gap="md">
+            <Divider label="软件更新" />
+            <Button variant="light" leftSection={<IconRefresh size={15} />} rightSection={updateAvailable ? <Badge size="xs">有更新</Badge> : undefined}
+              onClick={() => { closeSettings(); openUpdates() }}>打开软件更新</Button>
+            <Text size="xs" c="dimmed">当前版本 {updateState?.currentVersion || version || '读取中…'}。可检查版本、下载与安装更新，并设置是否接收测试版。</Text>
             <Divider label="数据存储" />
             <Stack gap="xs">
               <Text size="sm" fw={500}>当前存储位置</Text>
@@ -232,6 +259,7 @@ export function LibraryLayout() {
           </Stack>
         </div>
       </Drawer>
+      <SoftwareUpdateDialog opened={updatesOpen} onClose={closeUpdates} controller={updates} />
     </AppShell>
   )
 }

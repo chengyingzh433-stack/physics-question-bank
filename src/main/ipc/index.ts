@@ -18,6 +18,7 @@ import { importPaperFromPath } from '../files/importPaper'
 import { registerEditableIpc } from './editable'
 import { registerWordIpc } from './word'
 import { registerOcrIpc } from './ocr'
+import { registerUpdateIpc } from './updates'
 import { withStorageMigration } from '../storage/activity'
 import type { AnswerBindingDTO, NewPageDTO, SegmentDTO, QuestionFilterCriteria } from '../../shared/types'
 
@@ -26,6 +27,7 @@ export function registerIpc(): void {
   registerEditableIpc()
   registerWordIpc()
   registerOcrIpc()
+  registerUpdateIpc()
   // ---- app ----
   ipcMain.handle('app:ping', () => 'pong')
   ipcMain.handle('app:version', () => app.getVersion())

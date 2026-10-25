@@ -2,6 +2,13 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { Api } from '../shared/types'
 
 const api: Api = {
+  getUpdateState: () => ipcRenderer.invoke('updates:state'),
+  saveUpdatePreferences: (value) => ipcRenderer.invoke('updates:preferences', value),
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  downloadUpdate: () => ipcRenderer.invoke('updates:download'),
+  cancelUpdateDownload: () => ipcRenderer.invoke('updates:cancel'),
+  installUpdate: () => ipcRenderer.invoke('updates:install'),
+  openUpdateRelease: () => ipcRenderer.invoke('updates:openRelease'),
   getOcrSettings: () => ipcRenderer.invoke('ocr:getSettings'),
   saveOcrSettings: (input) => ipcRenderer.invoke('ocr:saveSettings', input),
   prepareOcrInput: (id, part, crop, scale) => ipcRenderer.invoke('ocr:prepare', id, part, crop, scale),
