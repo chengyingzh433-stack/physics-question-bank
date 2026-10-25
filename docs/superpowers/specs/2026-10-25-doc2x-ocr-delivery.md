@@ -19,7 +19,7 @@
 
 | 项目 | 结果 |
 | --- | --- |
-| 静态代码审查 | 已完成；修正取消期间残留活跃状态、转换失败未保留原文、草稿与来源冲突、校对状态继承、资料迁移竞态等问题 |
+| 静态代码审查 | 已完成；修正取消期间残留活跃状态、转换失败未保留原文、草稿与来源冲突、校对状态继承、资料迁移竞态、候选配图加载顺序等问题 |
 | `npm run typecheck` | 主进程和渲染层均通过 |
 | `npm run build` | 通过；原有 RenderService 同时静态/动态引入提示仍保留 |
 | `npm run rebuild` | 原生依赖构建完成 |
@@ -38,8 +38,8 @@
 - 目标：Apple Silicon Mac，macOS 13 或更新。
 - 本次未做 Apple Developer ID 签名及公证，系统可能要求开发者信任确认；更新后的安全存储访问可能需要重新授权。
 - GitHub Release：[v1.1.0-beta.6](https://github.com/chengyingzh433-stack/physics-question-bank/releases/tag/v1.1.0-beta.6)。发布状态将在上传确认后追加。
-- 文件大小：203,187,135 字节（约 193.8 MiB）。
-- SHA-256：`d950b50f25f80a36c36931eac2189551021882ae00c36b5a1f3a34a0f0c91412`；同一 Release 附 `SHA256SUMS.txt`。
+- 文件大小：203,185,675 字节（约 193.8 MiB）。
+- SHA-256：`781437c55f9b5a939e6dbd92f18a86843b20eb78f002a6353badf839a07ee616`；同一 Release 附 `SHA256SUMS.txt`。
 
 ## 用户入口与下一步
 

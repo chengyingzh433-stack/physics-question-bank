@@ -120,10 +120,13 @@ export function OcrWorkspace({ data, part, content, revision, savedContent, disa
     setCandidateLoading(true); setError('')
     window.api.getOcrCandidate(selectedId).then(async (value) => {
       if (!alive || candidateDirtyRef.current) return
+      const assets = await window.api.listOcrAssets(questionId)
+      if (!alive || candidateDirtyRef.current) return
+      // Mount the editor only after its image records are available. Tiptap's
+      // independent node views do not observe an assets ref changing on its own.
+      onAssetsRef.current(assets)
       setCandidate(value); setCandidateBaseline(value ? JSON.stringify(candidateInput(value)) : ''); setCandidateEditorVersion((old) => old + 1)
       setCandidateReviewConfirmation(undefined)
-      const assets = await window.api.listOcrAssets(questionId)
-      if (alive) onAssetsRef.current(assets)
     }).catch((e) => { if (alive) setError(String(e)) }).finally(() => { if (alive) setCandidateLoading(false) })
     return () => { alive = false }
   }, [selectedId, selectedJob?.status, questionId, candidateReload])
