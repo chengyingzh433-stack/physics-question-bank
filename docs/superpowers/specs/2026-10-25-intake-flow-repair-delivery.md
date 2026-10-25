@@ -29,4 +29,8 @@
 
 ## 发布与安装
 
-最终安装包与本机应用的摘要、安装时间及旧版移入废纸篓位置记录于忽略目录 `release/1.1.0-beta.10/local-install-receipt.json`。正式发布信息在上传校验后补充。
+最终安装包与本机应用的摘要、安装时间及旧版移入废纸篓位置记录于忽略目录 `release/1.1.0-beta.10/local-install-receipt.json`。本机最终安装完成时间：2026-10-25T21:34:05.232030+08:00。旧 beta.9 与中间复核构建已移入废纸篓；本机应用归档、主程序、arm64 数据库组件与最终 DMG 内副本逐一核对一致。安装后已打开最终版录题首页供用户使用。
+
+[beta.10 GitHub 下载页](https://github.com/chengyingzh433-stack/physics-question-bank/releases/tag/v1.1.0-beta.10) 已于 2026-10-25T13:37:14Z 发布为预发布版本。运行代码提交：`135959715d03d64fe326e1993577eaa186e5af33`；[草稿 PR #7](https://github.com/chengyingzh433-stack/physics-question-bank/pull/7)，基于 #6，尚未合并。
+
+DMG：`physics-question-bank-1.1.0-beta.10-mac-arm64.dmg`，203,640,978 字节。SHA-256：`fd2d44c93e15e2ebcead2682b84dd013a2cd047d38d6d4cebe096e4dbc2777ca`。安装包、校验文件、修复方案及使用说明上传后均核对服务器大小和 SHA-256 一致。发布核验记录保存在 `release/1.1.0-beta.10/github-publication-receipt.json`。
