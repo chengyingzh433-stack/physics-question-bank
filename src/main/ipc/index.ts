@@ -17,12 +17,15 @@ import * as fileService from '../files/FileService'
 import { importPaperFromPath } from '../files/importPaper'
 import { registerEditableIpc } from './editable'
 import { registerWordIpc } from './word'
+import { registerOcrIpc } from './ocr'
+import { withStorageMigration } from '../storage/activity'
 import type { AnswerBindingDTO, NewPageDTO, SegmentDTO, QuestionFilterCriteria } from '../../shared/types'
 
 /** 注册所有 IPC handler。在 app.whenReady 后调用一次。 */
 export function registerIpc(): void {
   registerEditableIpc()
   registerWordIpc()
+  registerOcrIpc()
   // ---- app ----
   ipcMain.handle('app:ping', () => 'pong')
   ipcMain.handle('app:version', () => app.getVersion())
@@ -456,7 +459,7 @@ export function registerIpc(): void {
 
   /** 迁移项目文件到新存储路径。 */
   ipcMain.handle('storage:migrate', async (_e, newPath: string) => {
-    return fileService.migrateStorage(newPath)
+    return withStorageMigration(() => fileService.migrateStorage(newPath))
   })
 
   /** 返回默认存储路径（userData/projects/），供前端恢复默认用。 */

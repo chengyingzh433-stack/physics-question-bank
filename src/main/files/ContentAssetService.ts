@@ -6,6 +6,7 @@ import type { DB } from '../storage/StorageService'
 import type { QuestionAssetDTO } from '../../shared/editable'
 import { insertQuestionAsset, requireEditableQuestion } from '../storage/repositories/contentRepo'
 import { imagesDir } from './FileService'
+import { withStorageUse } from '../storage/activity'
 
 const MAX_BYTES = 20 * 1024 * 1024
 const MAX_EDGE = 12000
@@ -56,6 +57,10 @@ function assetName(name: string): string {
 }
 
 async function saveBuffer(db: DB, questionId: number, data: Buffer, name: string): Promise<QuestionAssetDTO> {
+  return withStorageUse(() => saveBufferLocked(db, questionId, data, name))
+}
+
+async function saveBufferLocked(db: DB, questionId: number, data: Buffer, name: string): Promise<QuestionAssetDTO> {
   const question = requireEditableQuestion(db, questionId)
   const identity = db.prepare('SELECT created_at FROM questions WHERE id = ?').get(questionId) as { created_at: string | null }
   inspectImage(data)

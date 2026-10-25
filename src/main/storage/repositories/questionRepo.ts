@@ -4,10 +4,19 @@ import type { QuestionFilterCriteria } from '../questionFilter'
 import { buildQuestionQuery } from '../questionFilter'
 
 const QUESTION_ID_HIGH_WATER = 'internal:question_id_high_water'
-const EDITABLE_CONTENT_PROTECTED = '此题包含可编辑内容与历史版本，不能通过重新合并或取消合并删除。请保留当前编辑题；如需重新裁切，请重新导入原 PDF。'
+const EDITABLE_CONTENT_PROTECTED = '此题包含编辑内容、识别记录或恢复草稿，不能通过重新合并或取消合并删除。请保留当前题目；如需重新裁切，请重新导入原 PDF。'
 
 function hasContentTable(db: DB): boolean {
   return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'question_contents'").get())
+}
+
+function hasProtectedContent(db: DB, questionId: number): boolean {
+  // Fixed table names only; old databases may not yet have the OCR migration.
+  for (const table of ['question_contents', 'ocr_jobs', 'ocr_recovery_drafts']) {
+    if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table) &&
+      db.prepare(`SELECT 1 FROM ${table} WHERE question_id = ? LIMIT 1`).get(questionId)) return true
+  }
+  return false
 }
 
 /** 旧表不是 AUTOINCREMENT；记录曾用过的最大编号，避免删除末题后复用其 ID。 */
@@ -153,10 +162,9 @@ export function createQuestionWithSegments(
     // 旧合并流程会先建新题、再删除原题；在建新题之前阻止丢失编辑稿和历史。
     if (segmentIds.length && hasContentTable(db)) {
       const placeholders = segmentIds.map(() => '?').join(',')
-      const edited = db.prepare(`SELECT 1 FROM question_segments qs
-        JOIN question_contents c ON c.question_id = qs.question_id
-        WHERE qs.segment_id IN (${placeholders}) LIMIT 1`).get(...segmentIds)
-      if (edited) throw new Error(EDITABLE_CONTENT_PROTECTED)
+      const affected = db.prepare(`SELECT DISTINCT question_id FROM question_segments
+        WHERE segment_id IN (${placeholders})`).all(...segmentIds) as { question_id: number }[]
+      if (affected.some((row) => hasProtectedContent(db, row.question_id))) throw new Error(EDITABLE_CONTENT_PROTECTED)
     }
     // 同一事务分配编号、写题目、保存裁切关联；任一步失败一起回滚。
     const highest = rememberHighestQuestionId(db)
@@ -182,7 +190,7 @@ export function createQuestionWithSegments(
 export function deleteQuestion(db: DB, questionId: number): void {
   db.transaction(() => {
     // 旧撤销链路仅能恢复裁切关联，不能恢复编辑稿；整卷明确删除仍由 paperRepo 处理。
-    if (hasContentTable(db) && db.prepare('SELECT 1 FROM question_contents WHERE question_id = ?').get(questionId)) {
+    if (hasProtectedContent(db, questionId)) {
       throw new Error(EDITABLE_CONTENT_PROTECTED)
     }
     db.prepare(`DELETE FROM questions WHERE id = ?`).run(questionId)

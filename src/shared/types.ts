@@ -1,5 +1,6 @@
 // 主进程与渲染进程共享的类型契约（IPC DTO、领域模型）。
 import type { EditableApi } from './editable'
+import type { OcrApi } from './ocr'
 
 /** 试卷状态机：导入中→裁切中→后期处理中→已入库 */
 export type PaperStatus = 'importing' | 'cropping' | 'processing' | 'done'
@@ -44,7 +45,7 @@ export interface NewPageDTO {
   rotation: number
 }
 
-export interface Api extends EditableApi {
+export interface Api extends EditableApi, OcrApi {
   getAnswerPairings(paperId: number): Promise<AnswerPairingDTO[]>
   commitAnswerBindings(paperId: number, answerPaperId: number, bindings: AnswerBindingDTO[]): Promise<void>
   ping(): Promise<string>
