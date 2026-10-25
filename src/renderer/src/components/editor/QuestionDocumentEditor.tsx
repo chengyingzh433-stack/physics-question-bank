@@ -5,7 +5,7 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor, type NodeViewProps } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
 import { NodeSelection } from '@tiptap/pm/state'
-import { assetUrl, type EditableDocument, type ImageAlignment, type QuestionAssetDTO } from '@shared/editable'
+import { assetUrl, normalizeEditableDocument, type EditableDocument, type ImageAlignment, type QuestionAssetDTO } from '@shared/editable'
 import { FormulaDialog, MathContent } from './MathContent'
 import { ImageCropDialog } from './ImageCropDialog'
 import { ocrErrorMessage } from './ocrMessages'
@@ -73,7 +73,7 @@ export function QuestionDocumentEditor({ questionId, initialDocument, assets, di
       strike: false, underline: false, trailingNode: false }), InlineMath, Image]
   }, [])
   const editor = useEditor({
-    extensions, content: initialDocument, editable: !disabled,
+    extensions, content: normalizeEditableDocument(initialDocument), editable: !disabled,
     editorProps: {
       attributes: { 'aria-label': '可编辑题目正文', role: 'textbox', 'aria-multiline': 'true' },
       handlePaste: (_view, event) => {
@@ -85,12 +85,12 @@ export function QuestionDocumentEditor({ questionId, initialDocument, assets, di
       }
     },
     onUpdate: ({ editor: current }) => {
-      onChangeRef.current(current.getJSON() as EditableDocument)
+      onChangeRef.current(normalizeEditableDocument(current.getJSON() as EditableDocument))
       setSelectionVersion((value) => value + 1)
     },
     onSelectionUpdate: () => setSelectionVersion((value) => value + 1)
   })
-  useEffect(() => { editor?.setEditable(!disabled && !assetBusy) }, [editor, disabled, assetBusy])
+  useEffect(() => { editor?.setEditable(!disabled && !assetBusy, false) }, [editor, disabled, assetBusy])
   useEffect(() => { onBusy(assetBusy || formula != null || cropOpen) }, [assetBusy, formula != null, cropOpen, onBusy])
   useEffect(() => () => onBusy(false), [onBusy])
   // The counter subscribes this toolbar to selection and history transactions.

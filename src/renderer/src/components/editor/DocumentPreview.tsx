@@ -1,5 +1,5 @@
 import type { EditableDocument, EditableInline, QuestionAssetDTO } from '@shared/editable'
-import { assetUrl } from '@shared/editable'
+import { assetUrl, normalizeEditableDocument } from '@shared/editable'
 import { MathContent } from './MathContent'
 import './QuestionEditor.css'
 
@@ -13,7 +13,7 @@ function Inline({ node }: { node: EditableInline }) {
 }
 
 export function DocumentPreview({ document, assets }: { document: EditableDocument; assets: QuestionAssetDTO[] }) {
-  return <div className="editable-document-preview">{document.content.map((block, index) => {
+  return <div className="editable-document-preview">{normalizeEditableDocument(document).content.map((block, index) => {
     if (block.type === 'paragraph') return <p key={index}>{block.content?.map((node, child) => <Inline key={child} node={node} />) ?? <br />}</p>
     const asset = assets.find((item) => item.id === block.attrs.assetId)
     return <figure className="editable-image" key={index} style={{ textAlign: block.attrs.align }}>

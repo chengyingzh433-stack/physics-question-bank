@@ -25,11 +25,9 @@ import { SoftwareUpdateDialog } from '../updates/SoftwareUpdateDialog'
 import { useSoftwareUpdates } from '../updates/useSoftwareUpdates'
 
 const NAV = [
-  { to: '/', label: '主页', icon: IconHome2 },
-  { to: '/intake', label: '录题工作台', icon: IconClipboardList },
-  { to: '/bank', label: '题库浏览', icon: IconDatabase },
+  { to: '/intake', label: '录题', icon: IconClipboardList },
+  { to: '/bank', label: '我的题库', icon: IconDatabase },
   { to: '/basket', label: '组卷篮', icon: IconClipboardList },
-  { to: '/templates', label: '题型与模板', icon: IconTemplate }
 ]
 
 const DPI_OPTIONS = [
@@ -166,8 +164,8 @@ export function LibraryLayout() {
       <AppShell.Navbar p="xs">
         {NAV.map((item) => {
           const active =
-            item.to === '/'
-              ? location.pathname === '/'
+            item.to === '/intake'
+              ? location.pathname === '/' || location.pathname.startsWith('/intake')
               : location.pathname.startsWith(item.to)
           return (
             <NavLink
@@ -187,6 +185,10 @@ export function LibraryLayout() {
             />
           )
         })}
+        <details style={{ marginTop: 24 }}><summary style={{ cursor: 'pointer', padding: 12, fontSize: 13 }}>更多工具</summary>
+          <NavLink component={Link} to="/papers" label="整卷 PDF 裁切" leftSection={<IconHome2 size={18} />} active={location.pathname === '/papers'} />
+          <NavLink component={Link} to="/templates" label="题型与模板" leftSection={<IconTemplate size={18} />} active={location.pathname === '/templates'} />
+        </details>
       </AppShell.Navbar>
 
       <AppShell.Main>

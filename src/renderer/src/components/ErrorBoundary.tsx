@@ -50,7 +50,7 @@ export class ErrorBoundary extends Component<Props, State> {
           title="页面出错了"
           variant="light"
         >
-          这一页渲染时抛出了异常。你的数据没有丢失，可以返回主页继续使用。
+          页面暂时无法显示。已经保存的题目和原稿不会因此被删除；请先重试，录题页如有本机恢复副本会提示恢复。未提交修改请以恢复结果为准。
         </Alert>
 
         <Text size="sm" fw={600}>

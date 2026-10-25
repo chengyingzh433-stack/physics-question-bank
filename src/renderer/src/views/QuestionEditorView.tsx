@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Alert, Badge, Button, Checkbox, Divider, Drawer, Group, Loader, Paper, Select, Stack, Tabs, Text, Title } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconArrowLeft, IconDeviceFloppy, IconHistory } from '@tabler/icons-react'
-import { assetUrl, emptyQuestionMetadata, metadataFingerprint, hasEditableContent, newQuestionContent, type QuestionMetadataInput, type ContentRevisionDTO, type EditableQuestionDTO, type QuestionContentDTO, type QuestionContentInput } from '@shared/editable'
+import { assetUrl, normalizeEditableDocument, emptyQuestionMetadata, metadataFingerprint, hasEditableContent, newQuestionContent, type QuestionMetadataInput, type ContentRevisionDTO, type EditableQuestionDTO, type QuestionContentDTO, type QuestionContentInput } from '@shared/editable'
 import { QuestionDocumentEditor } from '../components/editor/QuestionDocumentEditor'
 import { DocumentPreview } from '../components/editor/DocumentPreview'
 import { QuestionMetadataFields } from '../components/editor/QuestionMetadataFields'
@@ -12,11 +12,12 @@ import { ocrDraftFingerprint, type OcrPart } from '@shared/ocr'
 import { ocrErrorMessage } from '../components/editor/ocrMessages'
 import '../components/editor/QuestionEditor.css'
 import type { IntakeDraft } from '@shared/intake'
+import { clearLocalEdit, readLocalEdit, recoveryKey, writeLocalEdit, type LocalEditRecovery } from '../components/editor/localEditRecovery'
 import { useUnsavedNavigation } from '../components/useUnsavedNavigation'
 
 const errorMessage = ocrErrorMessage
 const contentInput = (value: QuestionContentInput): QuestionContentInput => ({ schemaVersion: 1,
-  questionMode: value.questionMode, answerMode: value.answerMode, questionBody: value.questionBody, answerBody: value.answerBody,
+  questionMode: value.questionMode, answerMode: value.answerMode, questionBody: normalizeEditableDocument(value.questionBody), answerBody: normalizeEditableDocument(value.answerBody),
   ...(value.recognition ? { recognition: value.recognition } : {}) })
 
 
@@ -27,7 +28,11 @@ export default function QuestionEditorView() {
   const from = search.get('from') === '/intake' ? '/intake' : search.get('from') === '/basket' ? '/basket' : '/bank'
   const navigate = useNavigate()
   const [intake, setIntake] = useState<IntakeDraft | null>(null)
-  const [intakeConfirmed, setIntakeConfirmed] = useState(false)
+  const [completed, setCompleted] = useState(false)
+  const [recovery, setRecovery] = useState<LocalEditRecovery | null>(null)
+  const [recoveryNotice, setRecoveryNotice] = useState('')
+  const [recoveryError, setRecoveryError] = useState('')
+  const [ocrOpen, setOcrOpen] = useState(false)
   const [data, setData] = useState<EditableQuestionDTO | null>(null)
   const [content, setContent] = useState<QuestionContentInput>(newQuestionContent)
   const [baseline, setBaseline] = useState('')
@@ -54,13 +59,13 @@ export default function QuestionEditorView() {
   const [historyError, setHistoryError] = useState('')
   const writeLock = useRef(false)
   const dirty = Boolean(data && (JSON.stringify(content) !== baseline || metadataFingerprint(metadata) !== metadataFingerprint(savedMetadata)))
-  const busy = saving || editorBusy || ocrProtecting || metadataBusy
+  const busy = saving || editorBusy || ocrProtecting || metadataBusy || Boolean(recovery)
   useUnsavedNavigation(dirty || busy || ocrDirty)
   const draftRef = useRef({ content, revision }); draftRef.current = { content, revision }
   const currentDraft = useCallback(() => draftRef.current, [])
   const savedContent = useMemo<QuestionContentInput>(() => baseline ? JSON.parse(baseline) : newQuestionContent(), [baseline])
   const receiveDraft = useCallback((next: QuestionContentInput, target?: OcrPart) => {
-    setContent(contentInput(next)); setEditorVersion((value) => value + 1); setPreview(false)
+    backupRef.current(contentInput(next)); setContent(contentInput(next)); setEditorVersion((value) => value + 1); setPreview(false)
     if (target) setTab(target)
   }, [])
   const receiveAssets = useCallback((assets: EditableQuestionDTO['assets']) => {
@@ -75,19 +80,40 @@ export default function QuestionEditorView() {
     setData(snapshot); setContent(next); setBaseline(JSON.stringify(next)); setRevision(snapshot.content?.revision ?? 0)
     setSavedAt(snapshot.content?.updatedAt ?? ''); setEditorVersion((value) => value + 1); setError(''); setPreview(false)
   }, [])
-  useEffect(() => { setIntakeConfirmed(false) }, [content, revision, metadata])
+  const backup = (nextContent: QuestionContentInput, nextMetadata = metadata) => {
+    if (!data || recovery) return
+    try {
+      writeLocalEdit(recoveryKey(data), { version: 1, content: nextContent, metadata: nextMetadata,
+        baseRevision: revision, baseMetadata: savedMetadata, updatedAt: new Date().toISOString() })
+      setRecoveryError('')
+    } catch { setRecoveryError('本机恢复副本未能写入，请及时点击暂存。当前修改仍在页面中。') }
+  }
+  const backupRef = useRef(backup); backupRef.current = backup
+  useEffect(() => { if (dirty && !recovery) backupRef.current(content, metadata) }, [content, metadata, dirty, recovery])
+  const clearBackup = () => {
+    if (!data) return
+    try { clearLocalEdit(recoveryKey(data)); setRecoveryNotice(''); setRecoveryError('') }
+    catch { setRecoveryError('题目已保存，但旧的本机恢复副本未能清理。下次恢复前请核对时间。') }
+  }
+  const recoverLocal = () => {
+    if (!recovery) return
+    const conflict = recovery.baseRevision !== revision || metadataFingerprint(recovery.baseMetadata) !== metadataFingerprint(savedMetadata)
+    if (conflict && !window.confirm('正式题目或标签已发生变化。将旧的本机修改放回编辑区进行核对？此操作不会立即覆盖正式题目。')) return
+    setContent(contentInput(recovery.content)); setMetadata(recovery.metadata); setRecovery(null)
+    setEditorVersion((v) => v + 1); setRecoveryNotice('已恢复未提交修改，请核对后保存。')
+  }
   useEffect(() => {
     let alive = true
     window.api.getIntakeForQuestion(questionId).then((value) => { if (alive) setIntake(value) }).catch((e) => { if (alive) setError(errorMessage(e)) })
     return () => { alive = false }
   }, [questionId])
   const publishIntake = async () => {
-    if (!intake || !data || ocrDirty || busy || !intakeConfirmed || writeLock.current) return
+    if (!intake || !data || ocrDirty || busy || writeLock.current) return
     writeLock.current = true; setSaving(true); setError('')
     try {
       const result = await window.api.saveQuestionEdits(questionId, { content, expectedRevision: revision, metadata,
         expectedMetadata: savedMetadata, publish: { draftId: intake.id, confirmed: true } })
-      applySnapshot(result); setIntake({ ...intake, status: 'published' })
+      applySnapshot(result); setIntake({ ...intake, status: 'published' }); setCompleted(true)
       notifications.show({ title: '题目和标签已保存入库', message: '题库卡片会显示这次保存的内容。', color: 'green' })
     } catch (e) { setError(errorMessage(e)) } finally { writeLock.current = false; setSaving(false) }
   }
@@ -97,11 +123,11 @@ export default function QuestionEditorView() {
   }
   const applySnapshot = (result: EditableQuestionDTO) => {
     if (result.content) applySaved(result.content)
-    setData(result); setMetadata(result.metadata); setSavedMetadata(result.metadata)
+    setData(result); setMetadata(result.metadata); setSavedMetadata(result.metadata); clearBackup()
   }
   useEffect(() => {
     let alive = true
-    setLoading(true); setError(''); setData(null); setHistoryOpen(false)
+    setLoading(true); setError(''); setData(null); setHistoryOpen(false); setCompleted(false); setRecovery(null); setRecoveryNotice('')
     if (!Number.isSafeInteger(questionId) || questionId < 1) {
       setError('题目编号无效'); setLoading(false); return
     }
@@ -111,6 +137,11 @@ export default function QuestionEditorView() {
       setData(result); setContent(next); setBaseline(JSON.stringify(next)); setRevision(result.content?.revision ?? 0)
       setMetadata(result.metadata); setSavedMetadata(result.metadata)
       setSavedAt(result.content?.updatedAt ?? ''); setTab('question'); setEditorVersion((value) => value + 1)
+      try {
+        const cached = readLocalEdit(recoveryKey(result))
+        if (cached && (JSON.stringify(contentInput(cached.content)) !== JSON.stringify(next) || metadataFingerprint(cached.metadata) !== metadataFingerprint(result.metadata))) setRecovery(cached)
+        else clearLocalEdit(recoveryKey(result))
+      } catch (e) { setRecoveryError(errorMessage(e)) }
     }).catch((e) => { if (alive) setError(errorMessage(e)) }).finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
   }, [questionId, reload])
@@ -182,7 +213,8 @@ export default function QuestionEditorView() {
   }
   const leave = () => {
     if (busy) return
-    if ((dirty || ocrDirty) && !window.confirm('当前编辑稿或识别候选还有未保存修改。放弃这些修改并返回？')) return
+    if (ocrDirty && !window.confirm('识别候选还有未保存修改，请先在识别区保存。仍要离开并放弃候选修改？')) return
+    if (dirty && !window.confirm(recoveryError ? '本机恢复副本未能写入。建议取消并暂存，仍要放弃当前修改并返回？' : '当前修改尚未提交，本机恢复副本已保留。返回后可以重新进入题目恢复，是否返回？')) return
     navigate(from)
   }
   const body = tab === 'question' ? content.questionBody : content.answerBody
@@ -197,11 +229,11 @@ export default function QuestionEditorView() {
   return <div className="question-editor-view">
     <Paper className="question-editor-header" withBorder p="md">
       <Group justify="space-between" wrap="wrap">
-        <Group gap="sm"><Button variant="subtle" leftSection={<IconArrowLeft size={16} />} disabled={busy} onClick={leave}>返回{from === '/intake' ? '录题工作台' : from === '/basket' ? '组卷篮' : '题库'}</Button>
-          <div><Title order={3}>可编辑题目</Title><Text size="xs" c="dimmed">{data ? `${data.question.paper_name} · 第 ${data.question.order_in_paper ?? '—'} 题 · #${questionId}` : '读取题目内容'}</Text></div></Group>
+        <Group gap="sm"><Button variant="subtle" leftSection={<IconArrowLeft size={16} />} disabled={busy} onClick={leave}>返回{from === '/intake' ? '录题' : from === '/basket' ? '组卷篮' : '题库'}</Button>
+          <div><Title order={3}>{intake?.status === 'reviewing' ? '校对这道题' : '编辑题目'}</Title><Text size="xs" c="dimmed">{data ? `${data.question.paper_name} · 第 ${data.question.order_in_paper ?? '—'} 题 · #${questionId}` : '读取题目内容'}</Text></div></Group>
         <Group gap="xs"><Badge color={dirty ? 'orange' : 'gray'} variant="light">{dirty ? '有未保存修改' : revision ? `已保存 · 版本 ${revision}` : '尚未保存编辑内容'}</Badge>
-          <Button variant="default" disabled={!data || busy} leftSection={<IconHistory size={16} />} onClick={() => setHistoryOpen(true)}>历史版本</Button>
-          <Button disabled={!data || !dirty || busy} loading={saving} leftSection={<IconDeviceFloppy size={16} />} onClick={() => void save()}>{intake?.status === 'reviewing' ? '暂存草稿' : '保存题目和标签'}（⌘ / Ctrl + S）</Button></Group>
+          <Button size="xs" variant="subtle" disabled={!data || busy} leftSection={<IconHistory size={16} />} onClick={() => setHistoryOpen(true)}>历史版本</Button>
+          <Button disabled={!data || !dirty || busy} loading={saving} leftSection={<IconDeviceFloppy size={16} />} onClick={() => void save()}>{intake?.status === 'reviewing' ? '暂存' : '保存修改'}</Button></Group>
       </Group>
     </Paper>
     {loading ? <Group justify="center" p="xl"><Loader /><Text>读取题目…</Text></Group> : <Stack p="md">
@@ -215,13 +247,26 @@ export default function QuestionEditorView() {
         {data && /版本|其他窗口|OCR_REVISION_CONFLICT/.test(error) && <Button mt="sm" variant="light" disabled={busy} onClick={() => void protectAndReload()}>保留完整草稿并加载最新版本</Button>}
         {!data && <Button mt="sm" variant="light" onClick={() => setReload((value) => value + 1)}>重新读取</Button>}</Alert>}
       {data && <>
-        {intake && <Alert color={intake.status === 'published' ? 'green' : 'orange'} title={intake.status === 'published' ? '此题已入库' : '录题草稿 · 完成校对后确认入库'}>
-          <Text size="sm">在本页校对题干与答案、选择标签，最后保存入库。图片中的文字可按需使用下方 Doc2X 识别；不会自动上传原稿。</Text>
-          <Group mt="sm"><Button size="xs" variant="default" disabled={busy || dirty || ocrDirty} onClick={() => navigate(`/intake/${intake.id}`)}>查看原稿与组成部分</Button>
-            {intake.status === 'published' && <Button size="xs" variant="light" disabled={busy || dirty || ocrDirty} onClick={() => navigate('/bank')}>前往题库</Button>}</Group>
+        {recoveryError && <Alert color="orange">{recoveryError}</Alert>}
+        {recoveryNotice && <Alert color="blue" withCloseButton onClose={() => setRecoveryNotice('')}>{recoveryNotice}</Alert>}
+        {recovery && <Alert color="orange" title="发现上次未提交的修改">
+          <Text size="sm">本机副本时间：{new Date(recovery.updatedAt).toLocaleString()}。请选择恢复修改，或继续使用已保存版本。</Text>
+          <Group mt="xs"><Button size="xs" onClick={recoverLocal}>恢复修改</Button><Button size="xs" variant="default" onClick={() => {
+            if (!window.confirm('放弃这份尚未提交的本机修改，使用已保存版本？')) return
+            clearBackup(); setRecovery(null)
+          }}>使用已保存版本</Button></Group>
         </Alert>}
-        <QuestionMetadataFields value={metadata} onChange={setMetadata} disabled={busy} onBusy={setMetadataBusy} />
-        <Alert variant="light" color="blue">原图始终保留。可以手工编辑，也可按需使用下方云识别获得候选稿。选择“可编辑内容”并保存后，Word 导出才使用编辑稿。</Alert>
+        {completed ? <Paper withBorder p="lg"><Stack>
+          <Title order={2}>已保存到题库</Title><Text>这道题的内容和标签已经保存，可以继续录下一题。</Text>
+          <Group><Button onClick={() => navigate('/intake')}>继续录下一题</Button><Button variant="light" onClick={() => navigate('/bank')}>查看题库</Button>
+            <Button variant="subtle" onClick={() => setCompleted(false)}>继续修改这道题</Button></Group>
+          <div className="editor-paper"><DocumentPreview document={content.questionBody} assets={data.assets} /></div>
+        </Stack></Paper> : <>
+        <Group justify="space-between" gap="xs">
+          <Text size="sm" c="dimmed">{intake?.status === 'reviewing' ? '1 选择原稿 → 2 校对内容与标签 → 3 保存入库' : '修改正文或标签后，点击保存修改。'} · 原稿始终保留</Text>
+          <Group gap="xs"><Button size="xs" variant="light" disabled={busy} onClick={() => setOcrOpen(true)}>图片转文字 / 识别</Button>
+            <Button size="xs" variant="subtle" onClick={() => document.getElementById('question-labels')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>选标签</Button></Group>
+        </Group>
         <Tabs value={tab} onChange={(value) => { if (!busy && value) setTab(value as 'question' | 'answer') }}>
           <Tabs.List><Tabs.Tab value="question" disabled={busy}>题干</Tabs.Tab><Tabs.Tab value="answer" disabled={busy}>答案与解析</Tabs.Tab></Tabs.List>
         </Tabs>
@@ -233,21 +278,27 @@ export default function QuestionEditorView() {
           </Paper>
           <Paper withBorder p="md" className="editable-panel">
             <Stack gap="sm">
+              {body.content.some((b) => b.type === 'image') && !body.content.some((b) => b.type === 'paragraph' && b.content?.some((n) => n.type === 'text' || n.type === 'inlineMath')) &&
+                <Text size="sm" c="dimmed">当前内容仍是图片。需要修改图片中的文字时，请点击“图片转文字 / 识别”；也可以保留题图直接入库。</Text>}
               <Group justify="space-between"><Text fw={600}>{tab === 'question' ? '题干编辑稿' : '答案编辑稿'}</Text>
                 <Button variant="subtle" size="xs" disabled={busy} onClick={() => setPreview((value) => !value)}>{preview ? '继续编辑' : '预览编辑稿'}</Button></Group>
-              <Select label="Word 导出使用" value={mode} allowDeselect={false} disabled={busy}
+              <details className="editor-export-options"><summary>Word 导出设置</summary><Select label="Word 导出使用" value={mode} allowDeselect={false} disabled={busy}
                 description={mode === 'original' ? '编辑稿可先保存为草稿，导出仍使用原图。' : '导出使用下方文字、公式和独立配图。'}
                 data={[{ value: 'original', label: original ? '原图' : '原图（当前暂无原图）' }, { value: 'editable', label: '可编辑内容', disabled: !hasEditableContent(body) }]}
-                onChange={(value) => { if (value === 'original' || value === 'editable') setContent((prev) => ({ ...prev, [tab === 'question' ? 'questionMode' : 'answerMode']: value })) }} />
+                onChange={(value) => { if (value === 'original' || value === 'editable') setContent((prev) => ({ ...prev, [tab === 'question' ? 'questionMode' : 'answerMode']: value })) }} /></details>
               {mode === 'editable' && !hasEditableContent(body) && <Alert color="orange">编辑稿已清空，请补充内容或改用原图后保存。</Alert>}
               <div style={{ display: preview ? 'none' : undefined }}><QuestionDocumentEditor key={`${questionId}-${editorVersion}-${tab}`}
-                questionId={questionId} initialDocument={body} assets={data.assets} sources={sources} disabled={saving || ocrProtecting}
-                onBusy={handleEditorBusy} onChange={(document) => setContent((prev) => {
-                  const origin = prev.recognition?.[tab]
-                  const recognition = origin ? { ...prev.recognition, [tab]: { jobId: origin.jobId, candidateRevision: origin.candidateRevision,
-                    sourceFingerprint: origin.sourceFingerprint, reviewState: 'needs_review' as const } } : prev.recognition
-                  return { ...prev, [tab === 'question' ? 'questionBody' : 'answerBody']: document, ...(recognition ? { recognition } : {}) }
-                })}
+                questionId={questionId} initialDocument={body} assets={data.assets} sources={sources} disabled={saving || ocrProtecting || Boolean(recovery)}
+                onBusy={handleEditorBusy} onChange={(document) => {
+                  const nextBody = normalizeEditableDocument(document)
+                  const origin = content.recognition?.[tab]
+                  const recognition = origin ? { ...content.recognition, [tab]: { jobId: origin.jobId, candidateRevision: origin.candidateRevision,
+                    sourceFingerprint: origin.sourceFingerprint, reviewState: 'needs_review' as const } } : content.recognition
+                  const next = { ...content, [tab === 'question' ? 'questionBody' : 'answerBody']: nextBody,
+                    [tab === 'question' ? 'questionMode' : 'answerMode']: hasEditableContent(nextBody) ? 'editable' as const : 'original' as const,
+                    ...(recognition ? { recognition } : {}) }
+                  backup(next); setContent(next)
+                }}
                 onAsset={(asset) => setData((prev) => prev ? { ...prev, assets: [...prev.assets.filter((value) => value.id !== asset.id), asset] } : prev)} /></div>
               {preview && <div className="editor-paper"><DocumentPreview document={body} assets={data.assets} /></div>}
               {recognition && intake?.status !== 'reviewing' && <Checkbox checked={recognition.reviewState === 'reviewed'} disabled={busy || !hasEditableContent(body)}
@@ -261,14 +312,21 @@ export default function QuestionEditorView() {
             </Stack>
           </Paper>
         </div>
-        <OcrWorkspace key={questionId} initiallyExpanded={from === '/intake'} data={data} part={tab} content={content} revision={revision} savedContent={savedContent}
-          disabled={saving || editorBusy} currentDraft={currentDraft} onApplyDraft={receiveDraft} onAssets={receiveAssets}
-          onSourceSnapshot={receiveSourceSnapshot} onReloadSaved={receiveReloadSaved} onDirty={setOcrDirty} onProtectCurrentDraft={setOcrProtecting} />
-        {intake?.status === 'reviewing' && <Paper withBorder p="md" className="intake-publish-bar"><Group justify="space-between" align="center">
-          <Checkbox label="我已核对题干、选项、答案、配图和标签，确认可以入库" checked={intakeConfirmed}
-            disabled={busy || ocrDirty} onChange={(e) => setIntakeConfirmed(e.currentTarget.checked)} />
-          <Button loading={saving} disabled={busy || ocrDirty || !intakeConfirmed} onClick={() => void publishIntake()}>保存并入库</Button>
-        </Group>{ocrDirty && <Text size="xs" c="orange" mt="sm">识别候选仍有未保存修改，请先在识别区保存或处理候选。</Text>}</Paper>}
+        <div id="question-labels"><QuestionMetadataFields value={metadata} onChange={(next) => { backup(content, next); setMetadata(next) }} disabled={busy} onBusy={setMetadataBusy} /></div>
+        {intake && <details><summary>原稿与分区组题</summary><Text size="xs" c="dimmed">原稿和组成部分保留在本机。重新选择区域可从原稿页复制为新草稿。</Text>
+          <Button mt="xs" size="xs" variant="default" disabled={busy || dirty || ocrDirty} onClick={() => navigate(`/intake/${intake.id}`)}>查看原稿与组成部分</Button></details>}
+        <Paper withBorder p="sm" className="intake-publish-bar"><Group justify="space-between" align="center">
+          <Text size="sm" c="dimmed">{intake?.status === 'reviewing' ? '核对题干、答案和标签后，保存到题库。' : '保存后题卡会同步显示修改。'}</Text>
+          <Button loading={saving} disabled={busy || ocrDirty || (intake?.status !== 'reviewing' && !dirty)} onClick={() => void (intake?.status === 'reviewing' ? publishIntake() : save())}>
+            {intake?.status === 'reviewing' ? '保存并入库' : '保存修改'}</Button>
+        </Group>{ocrDirty && <Text size="xs" c="orange" mt="sm">识别候选仍有未保存修改，请打开识别区保存或处理候选。</Text>}</Paper>
+        </>}
+        <Drawer opened={ocrOpen} onClose={() => { if (!ocrProtecting) setOcrOpen(false) }} position="right" size="90%" title="图片转文字 · Doc2X" keepMounted
+          closeOnEscape={!ocrProtecting} closeOnClickOutside={!ocrProtecting} withCloseButton={!ocrProtecting}>
+          <OcrWorkspace key={questionId} initiallyExpanded data={data} part={tab} content={content} revision={revision} savedContent={savedContent}
+            disabled={saving || editorBusy || Boolean(recovery)} currentDraft={currentDraft} onApplyDraft={receiveDraft} onAssets={receiveAssets}
+            onSourceSnapshot={receiveSourceSnapshot} onReloadSaved={receiveReloadSaved} onDirty={setOcrDirty} onProtectCurrentDraft={setOcrProtecting} />
+        </Drawer>
       </>}
     </Stack>}
     <Drawer opened={historyOpen} onClose={() => { if (!saving) setHistoryOpen(false) }} position="right" size="xl" title="内容历史版本" closeOnEscape={!saving} closeOnClickOutside={!saving} withCloseButton={!saving}>

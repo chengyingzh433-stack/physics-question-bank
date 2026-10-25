@@ -95,8 +95,13 @@ export const newQuestionContent = (): QuestionContentInput => ({
   schemaVersion: 1, questionMode: 'original', answerMode: 'original',
   questionBody: emptyDocument(), answerBody: emptyDocument()
 })
-export function hasEditableContent(doc: EditableDocument): boolean {
-  return doc.content.some((block) => block.type === 'image' || block.content?.some((node) =>
+/** Empty editor documents may omit content in their JSON representation. */
+export function normalizeEditableDocument(doc: EditableDocument | null | undefined): EditableDocument {
+  return doc?.type === 'doc' && Array.isArray(doc.content) && doc.content.length
+    ? doc : emptyDocument()
+}
+export function hasEditableContent(doc: EditableDocument | null | undefined): boolean {
+  return (doc?.content ?? []).some((block) => block.type === 'image' || block.content?.some((node) =>
     node.type === 'inlineMath' ? Boolean(node.attrs.latex.trim()) : node.type === 'text' && Boolean(node.text.trim())))
 }
 export const assetUrl = (path: string): string => `app://projects/${path.replace(/^projects\//, '').split('/').map(encodeURIComponent).join('/')}`
