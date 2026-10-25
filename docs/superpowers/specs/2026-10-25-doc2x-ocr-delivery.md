@@ -37,9 +37,11 @@
 - 文件：`physics-question-bank-1.1.0-beta.6-mac-arm64.dmg`。
 - 目标：Apple Silicon Mac，macOS 13 或更新。
 - 本次未做 Apple Developer ID 签名及公证，系统可能要求开发者信任确认；更新后的安全存储访问可能需要重新授权。
-- GitHub Release：[v1.1.0-beta.6](https://github.com/chengyingzh433-stack/physics-question-bank/releases/tag/v1.1.0-beta.6)。发布状态将在上传确认后追加。
+- GitHub Release：[v1.1.0-beta.6](https://github.com/chengyingzh433-stack/physics-question-bank/releases/tag/v1.1.0-beta.6)。已于 2026-10-25 05:51 UTC 发布为预发布版本（非草稿）。
 - 文件大小：203,185,675 字节（约 193.8 MiB）。
 - SHA-256：`781437c55f9b5a939e6dbd92f18a86843b20eb78f002a6353badf839a07ee616`；同一 Release 附 `SHA256SUMS.txt`。
+
+上传核验：GitHub 资产状态为 `uploaded`，DMG 大小及服务端 SHA-256 与本机一致。Release 对应源码 `da16b56bb538e07de2718e7aa3be73db79972047`；代码审阅见 [PR #3](https://github.com/chengyingzh433-stack/physics-question-bank/pull/3)，以 M18 分支为基础，保留草稿状态等待用户功能验收。
 
 ## 用户入口与下一步
 
