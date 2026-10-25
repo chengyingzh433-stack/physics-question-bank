@@ -1,0 +1,11 @@
+.intake-workspace { max-width: 1800px; margin: 0 auto; }
+.intake-columns { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(350px, 1fr); gap: 16px; align-items: start; }
+.intake-source-panel { position: sticky; top: 12px; min-width: 0; }
+.intake-compose-panel { min-width: 0; }
+.intake-empty { padding: 76px 20px; text-align: center; border: 2px dashed var(--mantine-color-gray-4); border-radius: 10px; }
+.intake-part-image { display: block; max-width: 100%; max-height: 300px; object-fit: contain; object-position: left; background: white; margin: 8px 0; }
+.intake-composition-image { display: block; width: 100%; background: white; border: 1px solid #ddd; }
+.intake-word-frame { position: fixed; left: -20000px; top: 0; width: 1200px; height: 1800px; border: 0; pointer-events: none; }
+.intake-component { background: var(--mantine-color-body); }
+.intake-source-panel .crop-scroll { max-height: 58vh; }
+@media (max-width: 1100px) { .intake-columns { grid-template-columns: 1fr; } .intake-source-panel { position: static; } }

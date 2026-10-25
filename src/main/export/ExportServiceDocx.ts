@@ -104,7 +104,7 @@ function readSnapshot(setId: number, includeAnswers: boolean): SnapshotQuestion[
       const number = item.display_number?.trim() || String(index + 1)
       const label = `第 ${number} 题`
       const question = db.prepare(`SELECT q.id, q.paper_id, q.image_path, q.answer_image_path
-        FROM questions q JOIN papers p ON p.id = q.paper_id WHERE q.id = ? AND p.kind = 'paper'`).get(item.question_id) as
+        FROM questions q JOIN papers p ON p.id = q.paper_id WHERE q.id = ? AND (p.kind = 'paper' OR (p.kind = 'intake' AND p.status = 'done'))`).get(item.question_id) as
         { id: number; paper_id: number; image_path: string | null; answer_image_path: string | null } | undefined
       if (!question) throw new Error(`${label}已被删除或不再属于题库，请刷新组卷篮`)
       const content = contentRepo.getQuestionContent(db, question.id)

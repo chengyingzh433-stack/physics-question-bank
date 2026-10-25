@@ -46,7 +46,7 @@ function positiveInteger(value: unknown, label: string): asserts value is number
   if (!Number.isSafeInteger(value) || (value as number) <= 0) throw new Error(`${label}无效`)
 }
 
-/** 编辑器仅接收已入库的题目卷题目，拒绝答案切块和未完成占位题。 */
+/** 编辑器接收题目卷题目与已生成快照的录题草稿，拒绝答案切块和未完成占位题。 */
 export function requireEditableQuestion(db: DB, questionId: number): BankQuestionDTO {
   positiveInteger(questionId, '题目编号')
   const question = db.prepare(`
@@ -56,7 +56,7 @@ export function requireEditableQuestion(db: DB, questionId: number): BankQuestio
       COALESCE(q.source_override, p.source) AS effective_source,
       q.answer_image_path, q.answer_width_px, q.answer_height_px, p.name AS paper_name
     FROM questions q JOIN papers p ON p.id = q.paper_id
-    WHERE q.id = ? AND p.kind = 'paper' AND NULLIF(q.image_path, '') IS NOT NULL
+    WHERE q.id = ? AND p.kind IN ('paper', 'intake') AND NULLIF(q.image_path, '') IS NOT NULL
   `).get(questionId) as BankQuestionDTO | undefined
   if (!question) throw new Error('题目不存在或尚未入库，请返回题库重新选择')
   return question

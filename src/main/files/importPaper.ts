@@ -9,7 +9,7 @@ import type { PaperDTO, PaperKind } from '../../shared/types'
 export async function importPaperFromPath(
   sourcePath: string,
   name = '',
-  options?: { kind?: PaperKind; parentPaperId?: number | null }
+  options?: { kind?: Exclude<PaperKind, 'intake'>; parentPaperId?: number | null }
 ): Promise<PaperDTO> {
   if (typeof sourcePath !== 'string' || !isAbsolute(sourcePath) || extname(sourcePath).toLowerCase() !== '.pdf') {
     throw new Error('请选择本机的 PDF 文件，暂不支持其他格式或文件夹。')

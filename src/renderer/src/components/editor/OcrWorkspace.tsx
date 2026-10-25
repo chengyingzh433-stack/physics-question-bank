@@ -20,6 +20,7 @@ const reasonLabel = (value: string) => ({ before_adopt: '采用识别候选前�
   before_restore_history: '恢复历史版本前的编辑稿', before_reload_latest: '读取最新版本前的编辑稿' })[value] ?? value
 
 interface Props {
+  initiallyExpanded?: boolean
   data: EditableQuestionDTO; part: OcrPart; content: QuestionContentInput; revision: number; savedContent: QuestionContentInput
   disabled: boolean; currentDraft: () => { content: QuestionContentInput; revision: number }
   onApplyDraft: (content: QuestionContentInput, part?: OcrPart) => void
@@ -30,12 +31,12 @@ interface Props {
   onProtectCurrentDraft: (busy: boolean) => void
 }
 
-export function OcrWorkspace({ data, part, content, revision, savedContent, disabled, currentDraft, onApplyDraft, onAssets, onSourceSnapshot, onReloadSaved, onDirty, onProtectCurrentDraft }: Props) {
+export function OcrWorkspace({ initiallyExpanded = false, data, part, content, revision, savedContent, disabled, currentDraft, onApplyDraft, onAssets, onSourceSnapshot, onReloadSaved, onDirty, onProtectCurrentDraft }: Props) {
   const questionId = data.question.id
   const [settings, setSettings] = useState<OcrSettingsDTO | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [uploadPart, setUploadPart] = useState<OcrPart | null>(null)
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(initiallyExpanded)
   const [jobs, setJobs] = useState<OcrJobDTO[]>([])
   const [jobsError, setJobsError] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)

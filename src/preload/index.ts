@@ -2,6 +2,25 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { Api } from '../shared/types'
 
 const api: Api = {
+  listIntakeDrafts: () => ipcRenderer.invoke('intake:list'),
+  createIntakeDraft: (from, components) => ipcRenderer.invoke('intake:create', from, components),
+  getIntakeDraft: (id) => ipcRenderer.invoke('intake:get', id),
+  getIntakeForQuestion: (id) => ipcRenderer.invoke('intake:question', id),
+  saveIntakeDraft: (id, revision, title, components) => ipcRenderer.invoke('intake:save', id, revision, title, components),
+  importIntakeFiles: (id) => ipcRenderer.invoke('intake:files', id),
+  importIntakeFile: async (id, file) => {
+    const path = webUtils.getPathForFile(file)
+    if (path) return ipcRenderer.invoke('intake:path', id, path)
+    if (file.size > 100 * 1024 * 1024) throw new Error('文件超过 100 MiB')
+    return ipcRenderer.invoke('intake:bytes', id, await file.arrayBuffer(), file.name)
+  },
+  importIntakeBytes: (id, data, name) => ipcRenderer.invoke('intake:bytes', id, data, name),
+  pasteIntakeClipboard: (id) => ipcRenderer.invoke('intake:clipboard', id),
+  addIntakeCrop: (id, source, page, crop, data) => ipcRenderer.invoke('intake:crop', id, source, page, crop, data),
+  prepareIntakeQuestion: (id, revision, q, a) => ipcRenderer.invoke('intake:prepare', id, revision, q, a),
+  publishIntakeQuestion: (id, revision, confirmed) => ipcRenderer.invoke('intake:publish', id, revision, confirmed),
+  archiveIntakeDraft: (id, revision, archived) => ipcRenderer.invoke('intake:archive', id, revision, archived),
+  revealIntakeSource: (id, source) => ipcRenderer.invoke('intake:reveal', id, source),
   getUpdateState: () => ipcRenderer.invoke('updates:state'),
   saveUpdatePreferences: (value) => ipcRenderer.invoke('updates:preferences', value),
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),

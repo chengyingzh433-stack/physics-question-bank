@@ -4,6 +4,7 @@ import { join } from 'path'
 import { SCHEMA_V1, BUILTIN_TYPES, BUILTIN_DIFFICULTIES } from './schema'
 import { initializeChapterTemplates } from './chapterTemplates'
 import { initializeContentStorage } from './repositories/contentRepo'
+import { initializeIntakeStorage } from '../intake/IntakeService'
 import { initializeOcrStorage } from './repositories/ocrRepo'
 
 export type DB = Database.Database
@@ -102,6 +103,7 @@ export function initDatabase(): void {
   }
   initializeContentStorage(db)
   initializeOcrStorage(db)
+  initializeIntakeStorage(db)
 }
 
 /** 仅测试/关闭时使用。 */

@@ -3,8 +3,8 @@ import { Alert, Group, Select, SegmentedControl, Stack, Text } from '@mantine/co
 import type { OcrCrop } from '@shared/ocr'
 
 /** Only selects local pixels. The main process prepares the immutable upload copy. */
-export function OcrImageSelection({ url, disabled, onChange }: {
-  url: string; disabled: boolean
+export function OcrImageSelection({ url, disabled, onChange, purpose = 'ocr' }: {
+  url: string; disabled: boolean; purpose?: 'ocr' | 'intake'
   onChange: (crop: OcrCrop | null, scale: number, valid: boolean) => void
 }) {
   const [mode, setMode] = useState('full')
@@ -30,9 +30,9 @@ export function OcrImageSelection({ url, disabled, onChange }: {
   }
   return <Stack gap="sm">
     <Group justify="space-between" align="end">
-      <div><Text fw={500} size="sm" mb={4}>识别范围</Text><SegmentedControl value={mode} disabled={disabled}
+      <div><Text fw={500} size="sm" mb={4}>{purpose === 'intake' ? '选取范围' : '识别范围'}</Text><SegmentedControl value={mode} disabled={disabled}
         data={[{ value: 'full', label: '整张原图' }, { value: 'region', label: '拖动框选一部分' }]} onChange={setMode} /></div>
-      <Select label="上传副本尺寸" description="只缩小副本，原图保留。" value={scale} allowDeselect={false}
+      <Select label={purpose === 'intake' ? '选区副本尺寸' : '上传副本尺寸'} description="只缩小副本，原图保留。" value={scale} allowDeselect={false}
         disabled={disabled} data={[{ value: '1', label: '原始尺寸' }, { value: '0.75', label: '75%' }, { value: '0.5', label: '50%' }, { value: '0.25', label: '25%' }]}
         onChange={(value) => { if (value) setScale(value) }} />
     </Group>

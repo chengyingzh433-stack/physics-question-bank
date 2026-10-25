@@ -26,6 +26,7 @@ import { useSoftwareUpdates } from '../updates/useSoftwareUpdates'
 
 const NAV = [
   { to: '/', label: '主页', icon: IconHome2 },
+  { to: '/intake', label: '录题工作台', icon: IconClipboardList },
   { to: '/bank', label: '题库浏览', icon: IconDatabase },
   { to: '/basket', label: '组卷篮', icon: IconClipboardList },
   { to: '/templates', label: '题型与模板', icon: IconTemplate }
