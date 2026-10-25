@@ -39,4 +39,4 @@ SHA-256：`7caf81d34f752682d1b7f19f9ff001be18f8758396cdbca00788049f13996118`。
 
 校验文件：`SHA256SUMS.txt`。本机检查记录位于忽略目录 `release/1.1.0-beta.8/package-inspection.json`。
 
-代码分支：`codex/multi-source-intake`，基于 `codex/in-app-updates`。GitHub 上传与发布状态待发布后补记。本次不替换本机 beta.7 安装副本，用户可自行验收 beta.7 → beta.8 应用内更新。
+代码分支：`codex/multi-source-intake`，基于 `codex/in-app-updates`。GitHub 已于 2026-10-25T11:46:22Z 发布为预发布版本：[下载页](https://github.com/chengyingzh433-stack/physics-question-bank/releases/tag/v1.1.0-beta.8)。五个附件均已上传，GitHub 记录的大小与 SHA-256 和本机文件一致。运行代码提交为 `17cfe1656df3804515e0e62f578a7cd611f5b246`；[草稿 PR #5](https://github.com/chengyingzh433-stack/physics-question-bank/pull/5) 供审阅，尚未合并。本次不替换本机 beta.7 安装副本，用户可自行验收 beta.7 → beta.8 应用内更新。
