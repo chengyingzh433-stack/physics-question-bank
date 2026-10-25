@@ -45,6 +45,7 @@ const api: Api = {
   listOcrAssets: (id) => ipcRenderer.invoke('ocr:assets', id),
   openDoc2xConsole: () => ipcRenderer.invoke('ocr:openConsole'),
   getEditableQuestion: (id) => ipcRenderer.invoke('editable:get', id),
+  saveQuestionEdits: (id, input) => ipcRenderer.invoke('editable:saveEdits', id, input),
   saveQuestionContent: (id, content, expectedRevision) => ipcRenderer.invoke('editable:save', id, content, expectedRevision),
   listContentRevisions: (id) => ipcRenderer.invoke('editable:revisions', id),
   getContentRevision: (id, revision) => ipcRenderer.invoke('editable:revision', id, revision),

@@ -6,6 +6,7 @@ import type {
 } from '../../../shared/editable'
 import { hasEditableContent } from '../../../shared/editable'
 import { initializeQuestionIdSequence } from './questionRepo'
+import { getQuestionMetadata } from './questionMetadataRepo'
 
 const MAX_DOCUMENT_BYTES = 2 * 1024 * 1024
 const MAX_BLOCKS = 2000
@@ -92,7 +93,8 @@ export function getEditableQuestion(db: DB, questionId: number): EditableQuestio
   return {
     question: requireEditableQuestion(db, questionId),
     content: getQuestionContent(db, questionId),
-    assets: listQuestionAssets(db, questionId)
+    assets: listQuestionAssets(db, questionId),
+    metadata: getQuestionMetadata(db, questionId)
   }
 }
 

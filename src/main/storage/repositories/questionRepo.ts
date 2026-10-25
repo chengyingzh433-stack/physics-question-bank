@@ -94,7 +94,7 @@ export function listBankQuestions(
   db: DB,
   criteria: QuestionFilterCriteria
 ): (QuestionRow & { paper_name: string })[] {
-  const { sql, params } = buildQuestionQuery(criteria, `${QUESTION_COLUMNS}, p.name AS paper_name`)
+  const { sql, params } = buildQuestionQuery(criteria, `${QUESTION_COLUMNS}, p.name AS paper_name`, hasContentTable(db))
   return db.prepare(sql).all(...params) as (QuestionRow & { paper_name: string })[]
 }
 

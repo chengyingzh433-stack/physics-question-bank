@@ -15,6 +15,8 @@ import type {
 import { ChapterPicker } from '../components/ChapterPicker'
 import { KnowledgePointPicker } from '../components/KnowledgePointPicker'
 import { QuestionPreview } from '../components/bank/QuestionPreview'
+import { SavedQuestionBody, savedQuestionHasAnswer } from '../components/bank/SavedQuestionBody'
+import { useSavedQuestions } from '../components/bank/useSavedQuestions'
 import { notifyBasketChanged } from '../components/useBasketCount'
 import './BankView.css'
 
@@ -66,6 +68,11 @@ function BankView(): React.JSX.Element {
     } catch (e) { setMetaError(`分类信息加载失败：${String(e)}`) }
   }, [])
   useEffect(() => { void reloadMeta() }, [reloadMeta])
+  useEffect(() => {
+    const refresh = () => { void reloadMeta(); setRevision((value) => value + 1) }
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
+  }, [reloadMeta])
 
   // 筛选到达时立即废弃旧请求，避免输入期间返回的旧结果被选中。
   const resetResults = () => {
@@ -136,11 +143,13 @@ function BankView(): React.JSX.Element {
   const scopeName = currentFolder?.name ?? (criteria.unfiled ? '未归类' : '全部题目')
   const zoomIndex = questions.findIndex((q) => q.id === zoomId)
   const zoomQuestion = questions[zoomIndex] ?? null
+  const { details, errors: cardErrors } = useSavedQuestions([...visible.map((q) => q.id), ...(zoomQuestion ? [zoomQuestion.id] : [])], revision)
+  const zoomDetail = zoomQuestion ? details[zoomQuestion.id] : undefined
   const labelFor = (rows: { id: number; name: string }[], id: number | null) => rows.find((r) => r.id === id)?.name ?? ''
-  const previewLabels = zoomQuestion ? [
-    labelFor(types, zoomQuestion.type_id), labelFor(chapters, zoomQuestion.chapter_id),
-    labelFor(diffs, zoomQuestion.difficulty_id), zoomQuestion.effective_source,
-    zoomQuestion.effective_year?.toString()
+  const previewLabels = zoomDetail ? [
+    labelFor(types, zoomDetail.metadata.typeId), labelFor(chapters, zoomDetail.metadata.chapterId),
+    labelFor(diffs, zoomDetail.metadata.difficultyId), zoomDetail.question.effective_source,
+    zoomDetail.question.effective_year?.toString()
   ].filter((label): label is string => Boolean(label)) : []
   const clearFilters = () => { changeCriteria({}); setSearch('') }
   const activeCount = Object.values(criteria).filter((value) => Array.isArray(value) ? value.length > 0 : value != null && value !== false).length + (search.trim() ? 1 : 0)
@@ -184,7 +193,7 @@ function BankView(): React.JSX.Element {
     <KnowledgePointPicker label="知识点（命中任一）" points={kps} value={criteria.kp_ids ?? []} disabled={busy}
       onChange={(ids) => changeCriteria({ ...criteria, kp_ids: ids })} />
     <Select label="答案" placeholder="全部" clearable size="xs" disabled={busy}
-      data={[{ value: 'with', label: '已匹配答案' }, { value: 'without', label: '未匹配答案' }]}
+      data={[{ value: 'with', label: '有答案（文字或图片）' }, { value: 'without', label: '无答案' }]}
       value={criteria.answer_status ?? null} onChange={(v) => changeCriteria({ ...criteria, answer_status: v as 'with' | 'without' | null })} />
     <Button variant="subtle" size="xs" disabled={busy} onClick={clearFilters}>清除所有条件</Button>
   </Stack>
@@ -240,25 +249,30 @@ function BankView(): React.JSX.Element {
             <Text size="sm" c="dimmed">可以放宽筛选；新题夹可从“全部题目”勾选后加入。</Text>
             <Button variant="light" onClick={clearFilters}>查看全部题目</Button>
           </Stack> : <div className="bank-grid">
-            {visible.map((q) => <Card key={q.id} withBorder p="sm" className="bank-card"
+            {visible.map((q) => { const detail = details[q.id], meta = detail?.metadata
+              const labels = meta ? [labelFor(chapters, meta.chapterId), labelFor(diffs, meta.difficultyId),
+                ...meta.knowledgePointIds.map((id) => labelFor(kps, id))].filter(Boolean) : []
+              return <Card key={q.id} withBorder p="sm" className="bank-card"
               style={{ borderColor: selected.has(q.id) ? 'var(--mantine-color-sky-5)' : undefined }}>
               <Group justify="space-between" mb="xs">
                 <Checkbox label={`选中 #${q.id}`} size="xs" checked={selected.has(q.id)} disabled={busy} onChange={() => toggleSelected(q.id)} />
-                <Badge size="xs" variant="light" color={q.answer_image_path ? 'teal' : 'gray'}>{q.answer_image_path ? '有答案' : '无答案'}</Badge>
+                <Badge size="xs" variant="light" color={detail && savedQuestionHasAnswer(detail) ? 'teal' : 'gray'}>{detail ? savedQuestionHasAnswer(detail) ? '有答案' : '无答案' : cardErrors[q.id] ? '读取失败' : '读取中'}</Badge>
               </Group>
               <button type="button" className="bank-image-button" aria-label={`预览题目 ${q.id}`} onClick={() => setZoomId(q.id)}>
-                <img loading="lazy" src={`app://projects/${q.paper_id}/images/q_${q.id}.png`} alt={`第 ${q.order_in_paper} 题`} />
+                {detail ? <SavedQuestionBody detail={detail} /> : cardErrors[q.id] ? <Text size="xs" c="red">最新题卡读取失败，点击查看详情</Text> : <Loader size="sm" />}
               </button>
               <Text size="sm" fw={500} mt="xs" lineClamp={1} title={q.paper_name}>{q.paper_name}</Text>
-              <Text size="xs" c="dimmed">第 {q.order_in_paper ?? '—'} 题 · {labelFor(types, q.type_id) || '未标题型'}</Text>
+              <Text size="xs" c="dimmed">第 {q.order_in_paper ?? '—'} 题 · {labelFor(types, meta ? meta.typeId : q.type_id) || '未标题型'}</Text>
               <Text size="xs" c="dimmed" lineClamp={1} mih={18}>{[q.effective_year, q.effective_source].filter(Boolean).join(' · ')}</Text>
+              {labels.length > 0 && <Group gap={4} mt="xs">{labels.slice(0, 3).map((label, i) => <Badge key={i} size="xs" variant="outline" title={label}>{label}</Badge>)}
+                {labels.length > 3 && <Badge size="xs" color="gray" title={labels.join('、')}>另 {labels.length - 3} 项</Badge>}</Group>}
               <Button size="xs" fullWidth mt="sm" variant="light" disabled={busy}
-                onClick={() => navigate(`/questions/${q.id}/edit?from=/bank`)}>编辑题目与答案</Button>
+                onClick={() => navigate(`/questions/${q.id}/edit?from=/bank`)}>编辑题目 / 标签</Button>
               <Button size="xs" fullWidth mt="sm" variant={inBasket.has(q.id) ? 'light' : 'default'}
                 disabled={busy || draftSetId == null} onClick={() => toggleBasket(q.id)}>
                 {inBasket.has(q.id) ? '已入篮 · 点击移出' : '加入组卷篮'}
               </Button>
-            </Card>)}
+            </Card>})}
           </div>}
       </ScrollArea>
       <Group justify="space-between">
@@ -267,7 +281,8 @@ function BankView(): React.JSX.Element {
           siblings={0} disabled={loading || busy} onChange={setPage} />
       </Group>
     </div>
-    <QuestionPreview question={zoomQuestion} labels={previewLabels} knowledgePoints={kps}
+    <QuestionPreview question={zoomQuestion} detail={zoomDetail} error={zoomQuestion ? cardErrors[zoomQuestion.id] : undefined}
+      onRetry={() => setRevision((value) => value + 1)} labels={previewLabels} knowledgePoints={kps}
       inBasket={zoomQuestion ? inBasket.has(zoomQuestion.id) : false} busy={busy || draftSetId == null}
       onClose={() => setZoomId(null)} onBasket={() => { if (zoomQuestion) void toggleBasket(zoomQuestion.id) }}
       onPrevious={zoomIndex > 0 ? () => setZoomId(questions[zoomIndex - 1].id) : undefined}
