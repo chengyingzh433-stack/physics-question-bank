@@ -20,7 +20,9 @@
 - `npm run release:checksums` 与安装包文件检查完成：包内版本、应用标识、归档内容与本次编译一致。
 - 本机已从 DMG 安装到 `/Applications/物理教师题库管理系统.app`，版本 `1.1.0-beta.7`。安装副本的应用归档与 DMG 一致；没有启动应用。
 - beta.3 至 beta.6 的旧应用构建、DMG 及 blockmap 已移至本机废纸篓，历史说明和检查记录保留。题库数据、PDF、图片和密钥均未读写。
-- GitHub 仓库公开状态已确认。DMG 发布在进行中，发布成功后补充核对记录。
+- GitHub 仓库公开状态已确认。beta.7 已于 2026-10-25 14:27:41（北京时间）发布为预发布版本：[下载页](https://github.com/chengyingzh433-stack/physics-question-bank/releases/tag/v1.1.0-beta.7)。
+- GitHub DMG 资产状态为 `uploaded`，大小及 GitHub SHA-256 摘要与本机安装包一致；运行代码提交为 `a10d459dd7db68eeab0286708f24335ac93dfbe7`。
+- 代码已上传至 `codex/in-app-updates`；[草稿 PR #4](https://github.com/chengyingzh433-stack/physics-question-bank/pull/4) 供审阅，基于前阶段 Doc2X 分支，尚未合并。
 
 安装包：`physics-question-bank-1.1.0-beta.7-mac-arm64.dmg`，203,201,368 字节。
 
