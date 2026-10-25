@@ -2,10 +2,34 @@ import { BrowserWindow, dialog, ipcMain } from 'electron'
 import { getDb } from '../storage/StorageService'
 import * as contentRepo from '../storage/repositories/contentRepo'
 import { importQuestionAssetFromPath, saveQuestionAsset } from '../files/ContentAssetService'
-import type { QuestionContentInput } from '../../shared/editable'
+import type { QuestionContentInput, SaveQuestionEditsInput } from '../../shared/editable'
+import { saveQuestionMetadata } from '../storage/repositories/questionMetadataRepo'
+import { getDraft, publishQuestion } from '../intake/IntakeService'
 
 export function registerEditableIpc(): void {
   ipcMain.handle('editable:get', (_event, questionId: number) => contentRepo.getEditableQuestion(getDb(), questionId))
+  ipcMain.handle('editable:saveEdits', (_event, questionId: number, input: SaveQuestionEditsInput) => {
+    const db = getDb()
+    return db.transaction(() => {
+      contentRepo.requireEditableQuestion(db, questionId)
+      if (!input || typeof input !== 'object') throw new Error('保存内容无效')
+      let content = input.content
+      if (input.publish) {
+        const draft = getDraft(input.publish.draftId)
+        if (draft.questionId !== questionId || draft.status !== 'reviewing' || input.publish.confirmed !== true) throw new Error('请核对当前录题后再确认入库')
+        // One explicit whole-question confirmation covers both OCR parts of this exact submitted draft.
+        content = { ...content, recognition: content.recognition ? { ...content.recognition } : undefined }
+        for (const part of ['question', 'answer'] as const) {
+          const origin = content.recognition?.[part]
+          if (origin) content.recognition![part] = { ...origin, reviewState: 'reviewed', reviewConfirmedRevision: input.expectedRevision + 1 }
+        }
+      }
+      saveQuestionMetadata(db, questionId, input.metadata, input.expectedMetadata)
+      const saved = contentRepo.saveQuestionContent(db, questionId, content, input.expectedRevision)
+      if (input.publish) publishQuestion(input.publish.draftId, saved.revision, true)
+      return contentRepo.getEditableQuestion(db, questionId)
+    })()
+  })
   ipcMain.handle('editable:save', (_event, questionId: number, content: QuestionContentInput, expectedRevision: number) =>
     contentRepo.saveQuestionContent(getDb(), questionId, content, expectedRevision))
   ipcMain.handle('editable:revisions', (_event, questionId: number) => contentRepo.listContentRevisions(getDb(), questionId))

@@ -3,9 +3,10 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Alert, Badge, Button, Checkbox, Divider, Drawer, Group, Loader, Paper, Select, Stack, Tabs, Text, Title } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconArrowLeft, IconDeviceFloppy, IconHistory } from '@tabler/icons-react'
-import { assetUrl, hasEditableContent, newQuestionContent, type ContentRevisionDTO, type EditableQuestionDTO, type QuestionContentDTO, type QuestionContentInput } from '@shared/editable'
+import { assetUrl, emptyQuestionMetadata, metadataFingerprint, hasEditableContent, newQuestionContent, type QuestionMetadataInput, type ContentRevisionDTO, type EditableQuestionDTO, type QuestionContentDTO, type QuestionContentInput } from '@shared/editable'
 import { QuestionDocumentEditor } from '../components/editor/QuestionDocumentEditor'
 import { DocumentPreview } from '../components/editor/DocumentPreview'
+import { QuestionMetadataFields } from '../components/editor/QuestionMetadataFields'
 import { OcrWorkspace } from '../components/editor/OcrWorkspace'
 import { ocrDraftFingerprint, type OcrPart } from '@shared/ocr'
 import { ocrErrorMessage } from '../components/editor/ocrMessages'
@@ -30,6 +31,9 @@ export default function QuestionEditorView() {
   const [data, setData] = useState<EditableQuestionDTO | null>(null)
   const [content, setContent] = useState<QuestionContentInput>(newQuestionContent)
   const [baseline, setBaseline] = useState('')
+  const [metadata, setMetadata] = useState<QuestionMetadataInput>(emptyQuestionMetadata)
+  const [savedMetadata, setSavedMetadata] = useState<QuestionMetadataInput>(emptyQuestionMetadata)
+  const [metadataBusy, setMetadataBusy] = useState(false)
   const [revision, setRevision] = useState(0)
   const [savedAt, setSavedAt] = useState('')
   const [tab, setTab] = useState<'question' | 'answer'>('question')
@@ -49,8 +53,8 @@ export default function QuestionEditorView() {
   const [historyContent, setHistoryContent] = useState<QuestionContentDTO | null>(null)
   const [historyError, setHistoryError] = useState('')
   const writeLock = useRef(false)
-  const dirty = Boolean(data && JSON.stringify(content) !== baseline)
-  const busy = saving || editorBusy || ocrProtecting
+  const dirty = Boolean(data && (JSON.stringify(content) !== baseline || metadataFingerprint(metadata) !== metadataFingerprint(savedMetadata)))
+  const busy = saving || editorBusy || ocrProtecting || metadataBusy
   useUnsavedNavigation(dirty || busy || ocrDirty)
   const draftRef = useRef({ content, revision }); draftRef.current = { content, revision }
   const currentDraft = useCallback(() => draftRef.current, [])
@@ -71,24 +75,29 @@ export default function QuestionEditorView() {
     setData(snapshot); setContent(next); setBaseline(JSON.stringify(next)); setRevision(snapshot.content?.revision ?? 0)
     setSavedAt(snapshot.content?.updatedAt ?? ''); setEditorVersion((value) => value + 1); setError(''); setPreview(false)
   }, [])
-  useEffect(() => { setIntakeConfirmed(false) }, [content, revision])
+  useEffect(() => { setIntakeConfirmed(false) }, [content, revision, metadata])
   useEffect(() => {
     let alive = true
     window.api.getIntakeForQuestion(questionId).then((value) => { if (alive) setIntake(value) }).catch((e) => { if (alive) setError(errorMessage(e)) })
     return () => { alive = false }
   }, [questionId])
   const publishIntake = async () => {
-    if (!intake || dirty || ocrDirty || busy || !intakeConfirmed || writeLock.current) return
+    if (!intake || !data || ocrDirty || busy || !intakeConfirmed || writeLock.current) return
     writeLock.current = true; setSaving(true); setError('')
     try {
-      const saved = await window.api.publishIntakeQuestion(intake.id, revision, true)
-      setIntake(saved)
-      notifications.show({ title: '已确认入库', message: '可以在题库浏览中整理标签、加入题夹或组卷篮。', color: 'green' })
+      const result = await window.api.saveQuestionEdits(questionId, { content, expectedRevision: revision, metadata,
+        expectedMetadata: savedMetadata, publish: { draftId: intake.id, confirmed: true } })
+      applySnapshot(result); setIntake({ ...intake, status: 'published' })
+      notifications.show({ title: '题目和标签已保存入库', message: '题库卡片会显示这次保存的内容。', color: 'green' })
     } catch (e) { setError(errorMessage(e)) } finally { writeLock.current = false; setSaving(false) }
   }
   const applySaved = (value: QuestionContentDTO) => {
     const next = contentInput(value)
     setContent(next); setBaseline(JSON.stringify(next)); setRevision(value.revision); setSavedAt(value.updatedAt)
+  }
+  const applySnapshot = (result: EditableQuestionDTO) => {
+    if (result.content) applySaved(result.content)
+    setData(result); setMetadata(result.metadata); setSavedMetadata(result.metadata)
   }
   useEffect(() => {
     let alive = true
@@ -100,18 +109,19 @@ export default function QuestionEditorView() {
       if (!alive) return
       const next = result.content ? contentInput(result.content) : newQuestionContent()
       setData(result); setContent(next); setBaseline(JSON.stringify(next)); setRevision(result.content?.revision ?? 0)
+      setMetadata(result.metadata); setSavedMetadata(result.metadata)
       setSavedAt(result.content?.updatedAt ?? ''); setTab('question'); setEditorVersion((value) => value + 1)
     }).catch((e) => { if (alive) setError(errorMessage(e)) }).finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
   }, [questionId, reload])
 
   const save = async () => {
-    if (!data || writeLock.current || editorBusy || ocrProtecting || !dirty) return
+    if (!data || writeLock.current || busy || !dirty) return
     writeLock.current = true; setSaving(true); setError('')
     try {
-      const result = await window.api.saveQuestionContent(questionId, content, revision)
-      applySaved(result)
-      notifications.show({ title: '编辑内容已保存', message: `版本 ${result.revision}，Word 导出按所选内容模式使用。`, color: 'green' })
+      const result = await window.api.saveQuestionEdits(questionId, { content, expectedRevision: revision, metadata, expectedMetadata: savedMetadata })
+      applySnapshot(result)
+      notifications.show({ title: '题目和标签已保存', message: '题卡已使用最新保存的内容；Word 导出仍按所选内容模式使用。', color: 'green' })
     } catch (e) { setError(errorMessage(e)) }
     finally { writeLock.current = false; setSaving(false) }
   }
@@ -191,25 +201,26 @@ export default function QuestionEditorView() {
           <div><Title order={3}>可编辑题目</Title><Text size="xs" c="dimmed">{data ? `${data.question.paper_name} · 第 ${data.question.order_in_paper ?? '—'} 题 · #${questionId}` : '读取题目内容'}</Text></div></Group>
         <Group gap="xs"><Badge color={dirty ? 'orange' : 'gray'} variant="light">{dirty ? '有未保存修改' : revision ? `已保存 · 版本 ${revision}` : '尚未保存编辑内容'}</Badge>
           <Button variant="default" disabled={!data || busy} leftSection={<IconHistory size={16} />} onClick={() => setHistoryOpen(true)}>历史版本</Button>
-          <Button disabled={!data || !dirty || editorBusy || ocrProtecting} loading={saving} leftSection={<IconDeviceFloppy size={16} />} onClick={() => void save()}>保存（⌘ / Ctrl + S）</Button></Group>
+          <Button disabled={!data || !dirty || busy} loading={saving} leftSection={<IconDeviceFloppy size={16} />} onClick={() => void save()}>{intake?.status === 'reviewing' ? '暂存草稿' : '保存题目和标签'}（⌘ / Ctrl + S）</Button></Group>
       </Group>
     </Paper>
     {loading ? <Group justify="center" p="xl"><Loader /><Text>读取题目…</Text></Group> : <Stack p="md">
       {error && <Alert color="red" title="暂未完成操作">{error}<Text size="xs" mt="xs">当前编辑内容仍保留在此页。</Text>
+        {data && /标签/.test(error) && <Button mt="sm" variant="light" disabled={busy} onClick={async () => {
+          if (!window.confirm('用题库中的最新标签替换当前未保存的标签？正文修改会保留。')) return
+          setSaving(true)
+          try { const latest = await window.api.getEditableQuestion(questionId); setMetadata(latest.metadata); setSavedMetadata(latest.metadata); setError('') }
+          catch (e) { setError(errorMessage(e)) } finally { setSaving(false) }
+        }}>重新读取最新标签</Button>}
         {data && /版本|其他窗口|OCR_REVISION_CONFLICT/.test(error) && <Button mt="sm" variant="light" disabled={busy} onClick={() => void protectAndReload()}>保留完整草稿并加载最新版本</Button>}
         {!data && <Button mt="sm" variant="light" onClick={() => setReload((value) => value + 1)}>重新读取</Button>}</Alert>}
       {data && <>
         {intake && <Alert color={intake.status === 'published' ? 'green' : 'orange'} title={intake.status === 'published' ? '此题已入库' : '录题草稿 · 完成校对后确认入库'}>
-          <Text size="sm">题干、答案与配图已汇入当前编辑稿。可使用下方 Doc2X 识别，再对照原稿校对；也可直接手工修改并保存。</Text>
+          <Text size="sm">在本页校对题干与答案、选择标签，最后保存入库。图片中的文字可按需使用下方 Doc2X 识别；不会自动上传原稿。</Text>
           <Group mt="sm"><Button size="xs" variant="default" disabled={busy || dirty || ocrDirty} onClick={() => navigate(`/intake/${intake.id}`)}>查看原稿与组成部分</Button>
             {intake.status === 'published' && <Button size="xs" variant="light" disabled={busy || dirty || ocrDirty} onClick={() => navigate('/bank')}>前往题库</Button>}</Group>
-          {intake.status === 'reviewing' && <Group mt="sm" align="end">
-            <Checkbox label="我已核对题干、选项、答案和配图，确认这道题可以入库" checked={intakeConfirmed}
-              disabled={busy || dirty || ocrDirty} onChange={(e) => setIntakeConfirmed(e.currentTarget.checked)} />
-            <Button disabled={busy || dirty || ocrDirty || !intakeConfirmed} onClick={() => void publishIntake()}>确认入库</Button>
-            {(dirty || ocrDirty) && <Text size="xs">请先保存编辑稿和识别候选。</Text>}
-          </Group>}
         </Alert>}
+        <QuestionMetadataFields value={metadata} onChange={setMetadata} disabled={busy} onBusy={setMetadataBusy} />
         <Alert variant="light" color="blue">原图始终保留。可以手工编辑，也可按需使用下方云识别获得候选稿。选择“可编辑内容”并保存后，Word 导出才使用编辑稿。</Alert>
         <Tabs value={tab} onChange={(value) => { if (!busy && value) setTab(value as 'question' | 'answer') }}>
           <Tabs.List><Tabs.Tab value="question" disabled={busy}>题干</Tabs.Tab><Tabs.Tab value="answer" disabled={busy}>答案与解析</Tabs.Tab></Tabs.List>
@@ -239,7 +250,7 @@ export default function QuestionEditorView() {
                 })}
                 onAsset={(asset) => setData((prev) => prev ? { ...prev, assets: [...prev.assets.filter((value) => value.id !== asset.id), asset] } : prev)} /></div>
               {preview && <div className="editor-paper"><DocumentPreview document={body} assets={data.assets} /></div>}
-              {recognition && <Checkbox checked={recognition.reviewState === 'reviewed'} disabled={busy || !hasEditableContent(body)}
+              {recognition && intake?.status !== 'reviewing' && <Checkbox checked={recognition.reviewState === 'reviewed'} disabled={busy || !hasEditableContent(body)}
                 label="我已对照原图完成当前部分的校对" description="正文继续修改后会回到待复核；此状态随正式版本保存。"
                 onChange={(event) => {
                   const checked = event.currentTarget.checked
@@ -253,6 +264,11 @@ export default function QuestionEditorView() {
         <OcrWorkspace key={questionId} initiallyExpanded={from === '/intake'} data={data} part={tab} content={content} revision={revision} savedContent={savedContent}
           disabled={saving || editorBusy} currentDraft={currentDraft} onApplyDraft={receiveDraft} onAssets={receiveAssets}
           onSourceSnapshot={receiveSourceSnapshot} onReloadSaved={receiveReloadSaved} onDirty={setOcrDirty} onProtectCurrentDraft={setOcrProtecting} />
+        {intake?.status === 'reviewing' && <Paper withBorder p="md" className="intake-publish-bar"><Group justify="space-between" align="center">
+          <Checkbox label="我已核对题干、选项、答案、配图和标签，确认可以入库" checked={intakeConfirmed}
+            disabled={busy || ocrDirty} onChange={(e) => setIntakeConfirmed(e.currentTarget.checked)} />
+          <Button loading={saving} disabled={busy || ocrDirty || !intakeConfirmed} onClick={() => void publishIntake()}>保存并入库</Button>
+        </Group>{ocrDirty && <Text size="xs" c="orange" mt="sm">识别候选仍有未保存修改，请先在识别区保存或处理候选。</Text>}</Paper>}
       </>}
     </Stack>}
     <Drawer opened={historyOpen} onClose={() => { if (!saving) setHistoryOpen(false) }} position="right" size="xl" title="内容历史版本" closeOnEscape={!saving} closeOnClickOutside={!saving} withCloseButton={!saving}>

@@ -15,7 +15,7 @@ export interface BuiltFilter {
  * 仅返回 image_path 非空（已入库）且来自题目卷（p.kind='paper'）的题。
  * 年份/出处走 effective 口径（M13）：单题覆盖优先于试卷默认，调用方须 JOIN papers p。
  */
-export function buildQuestionFilter(c: QuestionFilterCriteria): BuiltFilter {
+export function buildQuestionFilter(c: QuestionFilterCriteria, includeEditableAnswers = false): BuiltFilter {
   // 旧 PDF 题图与已发布录题进入题库；答案卷及待校对录题保持隐藏。
   const conditions: string[] = ['q.image_path IS NOT NULL', "(p.kind = 'paper' OR (p.kind = 'intake' AND p.status = 'done'))"]
   const params: (string | number)[] = []
@@ -57,8 +57,19 @@ export function buildQuestionFilter(c: QuestionFilterCriteria): BuiltFilter {
   if (c.unfiled) {
     conditions.push('NOT EXISTS (SELECT 1 FROM question_folder_items fi WHERE fi.question_id = q.id)')
   }
-  if (c.answer_status === 'with') conditions.push("NULLIF(q.answer_image_path, '') IS NOT NULL")
-  if (c.answer_status === 'without') conditions.push("NULLIF(q.answer_image_path, '') IS NULL")
+  const hasAnswer = includeEditableAnswers ? `(NULLIF(q.answer_image_path, '') IS NOT NULL OR EXISTS (
+    SELECT 1 FROM question_contents saved,
+      json_each(CASE WHEN json_valid(saved.content_json) THEN saved.content_json ELSE '{}' END, '$.answerBody.content') block
+    WHERE saved.question_id = q.id AND (
+      json_extract(block.value, '$.type') = 'image' OR EXISTS (
+        SELECT 1 FROM json_each(block.value, '$.content') node
+        WHERE (json_extract(node.value, '$.type') = 'text' AND length(trim(json_extract(node.value, '$.text'), ' ' || char(9,10,13))) > 0)
+          OR (json_extract(node.value, '$.type') = 'inlineMath' AND length(trim(json_extract(node.value, '$.attrs.latex'), ' ' || char(9,10,13))) > 0)
+      )
+    )
+  ))` : "(NULLIF(q.answer_image_path, '') IS NOT NULL)"
+  if (c.answer_status === 'with') conditions.push(hasAnswer)
+  if (c.answer_status === 'without') conditions.push(`NOT ${hasAnswer}`)
   const search = c.search?.trim()
   if (search) {
     const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`
@@ -78,7 +89,7 @@ export function buildQuestionFilter(c: QuestionFilterCriteria): BuiltFilter {
 }
 
 /** 完整查询 SQL（含 join）。DISTINCT 因为知识点 join 会放大行数。 */
-export function buildQuestionQuery(c: QuestionFilterCriteria, columns = 'q.*'): { sql: string; params: (string | number)[] } {
+export function buildQuestionQuery(c: QuestionFilterCriteria, columns = 'q.*', includeEditableAnswers = false): { sql: string; params: (string | number)[] } {
   let kpJoin = ''
   const kpParams: number[] = []
   if (c.kp_ids && c.kp_ids.length > 0) {
@@ -86,7 +97,7 @@ export function buildQuestionQuery(c: QuestionFilterCriteria, columns = 'q.*'): 
     kpJoin = ` JOIN question_knowledge_points qkp ON qkp.question_id = q.id AND qkp.kp_id IN (${placeholders})`
     kpParams.push(...c.kp_ids)
   }
-  const { where, params } = buildQuestionFilter(c)
+  const { where, params } = buildQuestionFilter(c, includeEditableAnswers)
   const sql = `SELECT DISTINCT ${columns} FROM questions q JOIN papers p ON p.id = q.paper_id${kpJoin} WHERE ${where} ORDER BY q.paper_id ASC, q.order_in_paper ASC, q.id ASC`
   // JOIN 的占位符位于 WHERE 之前，必须同序绑定。
   return { sql, params: [...kpParams, ...params] }

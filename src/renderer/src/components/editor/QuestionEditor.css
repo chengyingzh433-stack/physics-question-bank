@@ -30,6 +30,7 @@
 .crop-selection { position: absolute; border: 2px solid #228be6; background: rgba(34,139,230,.16); pointer-events: none; }
 body { --keyboard-zindex: 500; }
 .ocr-workspace { margin-top: 8px; }
+.intake-publish-bar { position: sticky; bottom: 8px; z-index: 15; background: var(--mantine-color-body); box-shadow: 0 2px 12px #00000015; }
 .ocr-candidate-columns { display: grid; grid-template-columns: minmax(200px, .7fr) minmax(360px, 1.3fr); gap: 16px; align-items: start; }
 .ocr-source-panel { min-width: 0; max-height: 620px; overflow: auto; background: var(--mantine-color-default); }
 .ocr-raw-text { max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; padding: 12px; background: var(--mantine-color-default); border: 1px solid var(--mantine-color-default-border); border-radius: 5px; }

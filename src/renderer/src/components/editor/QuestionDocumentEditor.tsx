@@ -27,6 +27,7 @@ export function QuestionDocumentEditor({ questionId, initialDocument, assets, di
   const insertRange = useRef({ from: 1, to: 1 })
   const [assetBusy, setAssetBusy] = useState(false)
   const [error, setError] = useState('')
+  const pasteImageRef = useRef<(file: File) => void>(() => {})
   const openFormulaRef = useRef<(pos: number, latex: string) => void>(() => {})
   openFormulaRef.current = (pos, latex) => setFormula({ from: pos, to: pos + 1, latex })
 
@@ -77,7 +78,9 @@ export function QuestionDocumentEditor({ questionId, initialDocument, assets, di
       attributes: { 'aria-label': '可编辑题目正文', role: 'textbox', 'aria-multiline': 'true' },
       handlePaste: (_view, event) => {
         if (!event.clipboardData?.files.length) return false
-        setError('剪贴板包含图片。请先保存图片，再使用“导入配图”；或直接从左侧原图裁取。')
+        const files = Array.from(event.clipboardData.files)
+        if (files.length !== 1 || !/^image\/(png|jpeg)$/.test(files[0].type)) setError('请每次粘贴一张 PNG/JPEG 图片；文字可直接粘贴。')
+        else pasteImageRef.current(files[0])
         return true
       }
     },
@@ -109,6 +112,16 @@ export function QuestionDocumentEditor({ questionId, initialDocument, assets, di
     try { const asset = await window.api.importQuestionAsset(questionId); if (asset) insertAsset(asset) }
     catch (e) { setError(ocrErrorMessage(e)) }
     finally { setAssetBusy(false) }
+  }
+  pasteImageRef.current = (file) => {
+    if (busy) return
+    if (file.size > 20 * 1024 * 1024) { setError('粘贴图片超过 20 MiB，请缩小图片'); return }
+    rememberPosition(); setAssetBusy(true); setError('')
+    void (async () => {
+      try { insertAsset(await window.api.saveQuestionAsset(questionId, await file.arrayBuffer(), file.name || '粘贴配图.png')) }
+      catch (e) { setError(ocrErrorMessage(e)) }
+      finally { setAssetBusy(false) }
+    })()
   }
   const openFormula = () => {
     if (!editor) return

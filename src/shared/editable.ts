@@ -53,6 +53,29 @@ export interface EditableQuestionDTO {
   question: BankQuestionDTO
   content: QuestionContentDTO | null
   assets: QuestionAssetDTO[]
+  metadata: QuestionMetadataInput
+}
+export interface QuestionMetadataInput {
+  typeId: number | null
+  chapterId: number | null
+  difficultyId: number | null
+  knowledgePointIds: number[]
+  year: number | null
+  source: string | null
+}
+export const emptyQuestionMetadata = (): QuestionMetadataInput => ({
+  typeId: null, chapterId: null, difficultyId: null, knowledgePointIds: [], year: null, source: null
+})
+export const metadataFingerprint = (value: QuestionMetadataInput): string => JSON.stringify([
+  value.typeId, value.chapterId, value.difficultyId, [...new Set(value.knowledgePointIds)].sort((a, b) => a - b),
+  value.year, value.source?.trim() || null
+])
+export interface SaveQuestionEditsInput {
+  content: QuestionContentInput
+  expectedRevision: number
+  metadata: QuestionMetadataInput
+  expectedMetadata: QuestionMetadataInput
+  publish?: { draftId: string; confirmed: boolean }
 }
 export interface WordExportOptions {
   title: string
@@ -80,6 +103,7 @@ export const assetUrl = (path: string): string => `app://projects/${path.replace
 
 export interface EditableApi {
   getEditableQuestion(questionId: number): Promise<EditableQuestionDTO>
+  saveQuestionEdits(questionId: number, input: SaveQuestionEditsInput): Promise<EditableQuestionDTO>
   saveQuestionContent(questionId: number, content: QuestionContentInput, expectedRevision: number): Promise<QuestionContentDTO>
   listContentRevisions(questionId: number): Promise<ContentRevisionDTO[]>
   getContentRevision(questionId: number, revision: number): Promise<QuestionContentDTO>
