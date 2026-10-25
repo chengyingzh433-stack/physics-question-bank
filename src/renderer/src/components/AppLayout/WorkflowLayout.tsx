@@ -115,7 +115,7 @@ export function WorkflowLayout() {
         style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
       >
         <Group gap="sm">
-          <ActionIcon variant="subtle" component={Link} to="/" title="返回主页">
+          <ActionIcon variant="subtle" component={Link} to="/papers" title="返回试卷列表">
             <IconArrowLeft size={18} />
           </ActionIcon>
           <Text fw={600}>

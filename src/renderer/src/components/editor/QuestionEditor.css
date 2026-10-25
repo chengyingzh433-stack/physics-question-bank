@@ -45,3 +45,12 @@ body { --keyboard-zindex: 500; }
   .question-editor-header { position: static; }
   .ocr-candidate-columns { grid-template-columns: 1fr; }
 }
+
+/* Single-question flow: keep the question visible before optional settings. */
+.question-editor-header { padding: 12px 16px; }
+.question-editor-view > .mantine-Stack-root { padding-bottom: 86px; }
+.question-editor-view details > summary { cursor: pointer; font-size: 13px; color: var(--mantine-color-anchor); }
+.editor-export-options { order: 5; }
+#question-labels { scroll-margin-top: 112px; }
+.intake-publish-bar { position: fixed; bottom: 0; left: 0; right: 0; border-radius: 0; padding: 12px 20px; }
+.intake-start { border: 2px dashed var(--mantine-color-sky-3); background: var(--mantine-color-default); }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ActionIcon, Alert, Badge, Button, Checkbox, Divider, Group, Loader, Modal, Paper, Select, Stack, Text, Textarea, TextInput, Title } from '@mantine/core'
-import { IconArrowDown, IconArrowUp, IconPhotoPlus, IconPlus, IconTrash } from '@tabler/icons-react'
+import { IconArrowDown, IconArrowUp, IconPhotoPlus, IconTrash } from '@tabler/icons-react'
 import type { IntakeAsset, IntakeComponent, IntakeDraft, IntakeRole, IntakeSummary } from '@shared/intake'
 import type { OcrCrop } from '@shared/ocr'
 import { assetUrl } from '@shared/editable'
@@ -24,18 +24,31 @@ export default function IntakeView() {
 }
 function IntakeList() {
   const navigate = useNavigate(), [rows, setRows] = useState<IntakeSummary[]>([])
+  const [manualOpen, setManualOpen] = useState(false), [manualText, setManualText] = useState('')
+  const creating = useRef(false)
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState(''), [archive, setArchive] = useState(false)
   const refresh = useCallback(() => { setLoading(true); window.api.listIntakeDrafts().then(setRows).catch((e) => setError(errorText(e))).finally(() => setLoading(false)) }, [])
   useEffect(refresh, [refresh])
-  const create = async (mode: 'manual' | 'files' | 'clipboard') => {
-    if (busy) return
-    setBusy(true); setError('')
+  const create = async (mode: 'manual' | 'files' | 'clipboard' | 'text', files?: File[]) => {
+    if (creating.current) return
+    creating.current = true; setBusy(true); setError('')
     try {
       let d = await window.api.createIntakeDraft()
       if (mode === 'files') {
-        const result = await window.api.importIntakeFiles(d.id); d = result.draft
+        const result = files ? { draft: d, errors: [] as string[] } : await window.api.importIntakeFiles(d.id)
+        if (files) {
+          if (files.length > 40) throw new Error('每次最多添加 40 份原稿。')
+          for (const file of files) {
+            try { result.draft = await window.api.importIntakeFile(d.id, file) }
+            catch (e) { result.errors.push(`${file.name}：${errorText(e)}`) }
+          }
+        }
+        d = result.draft
         if (result.errors.length) throw new Error(`${result.errors.join('\n')}。已导入的原稿保存在组题草稿中，可继续整理。`)
         if (!d.sources.length) { await window.api.archiveIntakeDraft(d.id, d.revision, true); refresh(); return }
+      } else if (mode === 'text') {
+        d = await window.api.saveIntakeDraft(d.id, d.revision, '手工录题',
+          [{ id: crypto.randomUUID(), role: 'stem', label: '', text: manualText.trim(), assetId: null }])
       } else if (mode === 'clipboard') {
         const result = await window.api.pasteIntakeClipboard(d.id); d = result.draft
         if (result.text !== null) d = await window.api.saveIntakeDraft(d.id, d.revision, d.title,
@@ -48,25 +61,39 @@ function IntakeList() {
         if (d.components.length) { d = await prepareIntakeReview(d); navigate(editLink(d)); return }
       }
       navigate(`/intake/${d.id}`)
-    } catch (e) { setError(errorText(e)); refresh() } finally { setBusy(false) }
+    } catch (e) { setError(errorText(e)); refresh() } finally { creating.current = false; setBusy(false) }
   }
-  return <Stack p="lg" maw={1200} mx="auto">
-    <Group justify="space-between"><div><Title order={2}>录题工作台</Title><Text c="dimmed" mt={4}>截图、图片、PDF、Word 汇入一道题，整理后识别与校对。</Text></div>
-      <Button leftSection={<IconPlus size={18} />} disabled={busy} variant="default" onClick={() => void create('manual')}>分区组题 / 手工输入</Button></Group>
-    <Group><Button loading={busy} onClick={() => void create('files')}>选择图片 / PDF / Word</Button>
-      <Button disabled={busy} variant="light" onClick={() => void create('clipboard')}>粘贴截图或文字录题</Button></Group>
-    <Text size="sm" c="dimmed">一张图片或一段文字直接进入校对；PDF、Word 和多份原稿先选取需要的内容，再继续校对、选标签并保存入库。</Text>
-    <Paper withBorder p="lg"><Text fw={600}>两种方式可以混用</Text><Text size="sm" mt="xs">在原稿上框选题干、选项和配图；或把文字与图片直接加入对应部分。原稿保留在本机，云识别由你逐次确认。</Text>
-      <Text size="xs" c="dimmed" mt="xs">支持 PNG / JPEG、PDF、DOCX；旧 DOC 请先另存为 DOCX 或 PDF。每次整理一道题，可以沿用同一份原稿继续录下一题。</Text></Paper>
+  return <Stack p="md" maw={1200} mx="auto" onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault() }}
+    onDrop={(e) => { const files = Array.from(e.dataTransfer.files); if (files.length) { e.preventDefault(); void create('files', files) } }}
+    onPaste={(e) => {
+      if ((e.target as HTMLElement).closest('input,textarea,[contenteditable=true]')) return
+      if (e.clipboardData.files.length || e.clipboardData.getData('text/plain')) { e.preventDefault(); void create('clipboard') }
+    }}>
+    <div><Title order={2}>录入一道题</Title><Text c="dimmed" mt={4}>选择原稿 → 校对内容与标签 → 保存入库</Text></div>
+    <Paper withBorder p="xl" className="intake-start">
+      <Text fw={600} size="lg">把题目拖到这里，或选择一种录入方式</Text>
+      <Group mt="md"><Button size="md" loading={busy} onClick={() => void create('files')}>选择图片 / PDF / Word</Button>
+        <Button size="md" disabled={busy} variant="light" onClick={() => void create('clipboard')}>粘贴截图或文字</Button>
+        <Button size="md" disabled={busy} variant="default" onClick={() => setManualOpen(true)}>直接输入文字</Button></Group>
+      <Text size="sm" c="dimmed" mt="md">支持 PNG、JPEG、PDF、DOCX。截图和文字可按 ⌘V / Ctrl+V 粘贴；原稿保留在本机。</Text>
+    </Paper>
+    <Group justify="space-between"><Title order={4}>继续未完成的题目</Title>
+      <Button size="xs" disabled={busy} variant="subtle" onClick={() => void create('manual')}>分区组题：分别添加题干、选项、配图</Button></Group>
+    <Modal opened={manualOpen} onClose={() => { if (!busy) setManualOpen(false) }} title="直接输入题目" closeOnClickOutside={!busy} closeOnEscape={!busy} withCloseButton={!busy}>
+      <Stack><Textarea label="题干" placeholder="输入或粘贴题干和选项，下一步可以添加答案、公式、配图及标签。" value={manualText} disabled={busy} autosize minRows={6} maxRows={14}
+        maxLength={20000} onChange={(e) => setManualText(e.currentTarget.value)} />
+        {error && <Alert color="red">{error}</Alert>}
+        <Button loading={busy} disabled={!manualText.trim()} onClick={() => void create('text')}>继续校对</Button></Stack>
+    </Modal>
     {error && <Alert color="red">{error}<Button ml="sm" variant="subtle" onClick={refresh}>重新读取</Button></Alert>}
-    <Checkbox label="显示已归档草稿" checked={archive} onChange={(e) => setArchive(e.currentTarget.checked)} />
-    {loading ? <Loader /> : rows.filter((d) => archive || d.status !== 'archived').map((d) => <Paper key={d.id} withBorder p="md">
+    <Checkbox label="显示已入库和已归档记录" checked={archive} onChange={(e) => setArchive(e.currentTarget.checked)} />
+    {loading ? <Loader /> : rows.filter((d) => archive || (d.status !== 'archived' && d.status !== 'published')).map((d) => <Paper key={d.id} withBorder p="md">
       <Group justify="space-between"><div><Group gap="sm"><Text fw={600}>{d.title}</Text><Badge color={d.status === 'published' ? 'green' : d.status === 'reviewing' ? 'orange' : 'gray'}>{statuses[d.status]}</Badge></Group>
         <Text size="xs" c="dimmed" mt={4}>{d.componentCount} 个部分 · {new Date(d.updatedAt).toLocaleString()}</Text></div>
         <Group><Button variant="default" component={Link} to={`/intake/${d.id}`}>查看原稿与组题</Button>
           {(d.status === 'reviewing' || d.status === 'published') && <Button component={Link} to={editLink(d)}>{d.status === 'published' ? '编辑题目' : '继续校对'}</Button>}</Group></Group>
     </Paper>)}
-    {!loading && !rows.some((d) => archive || d.status !== 'archived') && <Text c="dimmed" ta="center" py="xl">还没有录题草稿。选择文件、粘贴截图，或开始手工输入。</Text>}
+    {!loading && !rows.some((d) => archive || (d.status !== 'archived' && d.status !== 'published')) && <Text c="dimmed" ta="center" py="xl">还没有录题草稿。选择文件、粘贴截图，或开始手工输入。</Text>}
   </Stack>
 }
 function IntakeWorkspace({ draftId }: { draftId: string }) {
@@ -179,7 +206,7 @@ function IntakeWorkspace({ draftId }: { draftId: string }) {
     releaseComposition(compositionRef.current); compositionRef.current = value; setComposition(value)
   }
   const closePreview = () => { if (lock.current) return; releaseComposition(compositionRef.current); compositionRef.current = null; setComposition(null) }
-  if (!draft) return <Stack p="lg">{error ? <Alert color="red">{error}</Alert> : <Loader />}<Button component={Link} to="/intake" variant="default">返回录题工作台</Button></Stack>
+  if (!draft) return <Stack p="lg">{error ? <Alert color="red">{error}</Alert> : <Loader />}<Button component={Link} to="/intake" variant="default">返回录题</Button></Stack>
   const activeSource = draft.sources.find((s) => s.id === sourceId)
   return <Stack p="md" className="intake-workspace" onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault() }}
     onDrop={(e) => { const files = Array.from(e.dataTransfer.files); if (!files.length) return; e.preventDefault(); if (editing && !busy) void run(() => importFiles(files)) }}
@@ -188,7 +215,7 @@ function IntakeWorkspace({ draftId }: { draftId: string }) {
       if (!files.length || !editing || busy) return
       e.preventDefault(); void run(() => importFiles(files))
     }}>
-    <Group justify="space-between" align="start"><div><Button component={Link} to="/intake" variant="subtle" size="xs">返回录题工作台</Button><Title order={3}>组合一道题</Title></div>
+    <Group justify="space-between" align="start"><div><Button component={Link} to="/intake" variant="subtle" size="xs">返回录题</Button><Title order={3}>选取这道题</Title><Text size="sm" c="dimmed">1 选择原稿与选区 → 2 校对内容与标签 → 3 保存入库</Text></div>
       <Group><Badge color={editing ? 'blue' : 'green'}>{statuses[draft.status]}</Badge><Text size="xs" c="dimmed">{text.trim() ? '输入文字尚未加入组题' : dirty ? '有未保存修改' : '草稿已保存'}</Text>
         {editing && <Button variant="default" disabled={busy || (!dirty && !text.trim())} onClick={() => void run(async () => { await collectText(); await persist() })}>暂存（⌘ / Ctrl + S）</Button>}
         {editing && <Button variant="subtle" disabled={busy} onClick={() => void run(preview)}>预览组合</Button>}

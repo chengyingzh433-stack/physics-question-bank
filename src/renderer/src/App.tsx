@@ -34,7 +34,8 @@ function App(): React.JSX.Element {
         <Route path="/questions/:questionId/edit" element={<ErrorBoundary><QuestionEditorView /></ErrorBoundary>} />
         {/* 库区:常驻侧边导航 */}
         <Route element={<LibraryLayout />}>
-          <Route path="/" element={<ErrorBoundary><HomeView /></ErrorBoundary>} />
+          <Route path="/" element={<ErrorBoundary><IntakeView /></ErrorBoundary>} />
+          <Route path="/papers" element={<ErrorBoundary><HomeView /></ErrorBoundary>} />
           <Route path="/intake" element={<ErrorBoundary><IntakeView /></ErrorBoundary>} />
           <Route path="/intake/:draftId" element={<ErrorBoundary><IntakeView /></ErrorBoundary>} />
           <Route path="/templates" element={<ErrorBoundary><TemplateView /></ErrorBoundary>} />
