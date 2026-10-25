@@ -2,6 +2,22 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { Api } from '../shared/types'
 
 const api: Api = {
+  getOcrSettings: () => ipcRenderer.invoke('ocr:getSettings'),
+  saveOcrSettings: (input) => ipcRenderer.invoke('ocr:saveSettings', input),
+  prepareOcrInput: (id, part, crop, scale) => ipcRenderer.invoke('ocr:prepare', id, part, crop, scale),
+  startOcrJob: (input) => ipcRenderer.invoke('ocr:start', input),
+  listOcrJobs: (id) => ipcRenderer.invoke('ocr:list', id),
+  pauseOcrJob: (id) => ipcRenderer.invoke('ocr:pause', id),
+  resumeOcrJob: (id) => ipcRenderer.invoke('ocr:resume', id),
+  getOcrCandidate: (id) => ipcRenderer.invoke('ocr:candidate', id),
+  getOcrSource: (id) => ipcRenderer.invoke('ocr:source', id),
+  saveOcrCandidate: (id, input, revision) => ipcRenderer.invoke('ocr:saveCandidate', id, input, revision),
+  discardOcrCandidate: (id, revision) => ipcRenderer.invoke('ocr:discardCandidate', id, revision),
+  adoptOcrCandidate: (input) => ipcRenderer.invoke('ocr:adopt', input),
+  listOcrRecoveries: (id) => ipcRenderer.invoke('ocr:recoveries', id),
+  createOcrRecovery: (id, content, reason) => ipcRenderer.invoke('ocr:createRecovery', id, content, reason),
+  listOcrAssets: (id) => ipcRenderer.invoke('ocr:assets', id),
+  openDoc2xConsole: () => ipcRenderer.invoke('ocr:openConsole'),
   getEditableQuestion: (id) => ipcRenderer.invoke('editable:get', id),
   saveQuestionContent: (id, content, expectedRevision) => ipcRenderer.invoke('editable:save', id, content, expectedRevision),
   listContentRevisions: (id) => ipcRenderer.invoke('editable:revisions', id),

@@ -8,6 +8,7 @@ import { NodeSelection } from '@tiptap/pm/state'
 import { assetUrl, type EditableDocument, type ImageAlignment, type QuestionAssetDTO } from '@shared/editable'
 import { FormulaDialog, MathContent } from './MathContent'
 import { ImageCropDialog } from './ImageCropDialog'
+import { ocrErrorMessage } from './ocrMessages'
 
 interface Props {
   questionId: number; initialDocument: EditableDocument; assets: QuestionAssetDTO[]; disabled: boolean
@@ -106,7 +107,7 @@ export function QuestionDocumentEditor({ questionId, initialDocument, assets, di
     if (busy) return
     rememberPosition(); setAssetBusy(true); setError('')
     try { const asset = await window.api.importQuestionAsset(questionId); if (asset) insertAsset(asset) }
-    catch (e) { setError(String(e)) }
+    catch (e) { setError(ocrErrorMessage(e)) }
     finally { setAssetBusy(false) }
   }
   const openFormula = () => {

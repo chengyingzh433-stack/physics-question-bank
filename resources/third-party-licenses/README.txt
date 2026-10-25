@@ -1,4 +1,4 @@
-教师题库 M18：可编辑题目与 Word 导出 — 第三方组件说明
+教师题库 M18 / M19：可编辑题目、Word 导出及单题识别 — 第三方组件说明
 
 本模块使用：
 Tiptap 3.32.0 (MIT) https://github.com/ueberdosis/tiptap
@@ -6,6 +6,13 @@ MathLive 0.111.1 (MIT) https://github.com/arnog/mathlive
 docx 9.14.0 (MIT) https://github.com/dolanmiu/docx
 mathml2omml 0.5.0 (LGPL-3.0-or-later) https://github.com/fiduswriter/mathml2omml
 saxes 6.0.0 (ISC) https://github.com/lddubeau/saxes
+
+M19 新增本地结果解析组件（MIT）：
+unified 11.0.5、remark-parse 11.0.0、remark-math 6.0.0、remark-gfm 4.0.1、
+fflate 0.8.3、htmlparser2 10.0.0；完整新增依赖许可见 M19-NOTICES.txt。
+micromark-extension-math 的 KaTeX 依赖固定为 0.19.1，避免旧版已知问题；
+本应用使用 Markdown 语法树，不使用该依赖生成的 HTML。
+Doc2X 识别引擎不随本程序分发；用户自行启用其外部服务并承担账户费用。
 
 mathml2omml 版权所有 Johannes Wilm 及贡献者。本程序使用其未修改发行版，
 该库及其使用受随附 LGPL-3.0 与 GPL-3.0 条款约束。

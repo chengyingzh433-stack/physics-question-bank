@@ -1,6 +1,6 @@
 # 教师题库管理系统
 
-面向教师个人积累与复用好题的桌面工具，当前 Mac 人工验收版：**1.1.0-beta.5**；Windows 已验证版本：**1.1.0-beta.3**。
+面向教师个人积累与复用好题的桌面工具，当前 Mac 人工验收版：**1.1.0-beta.6**；Windows 已验证版本：**1.1.0-beta.3**。
 
 ## 下载与使用
 
@@ -18,10 +18,11 @@ Mac 版尚无 Apple Developer ID 签名和公证，本版仅完成静态检查�
 - 人教版（2019）高中物理六册章节模板，支持自定义章节及子章节；按上级章节筛选时包含下级题目。
 - 知识点搜索多选，输入前几个字显示匹配候选，也可新建并选中。
 - 题干/答案对照编辑、可视公式、本地配图与原图裁取、图片缩放、保存及历史恢复。
+- Doc2X 单题云识别：题干或答案图片上传预览、独立候选校对、待处理事项、采用前恢复草稿与任务续查；默认关闭，逐次确认。
 - Word 组卷：原图与编辑内容混排、自定义题号、分组标题、页边距、题后留白和答案位置；公式以 Word 原生公式输出。
 - 原图 PDF / PPTX 导出继续保留。
 
-扫描 PDF 仍以题图保留；可编辑稿当前手动输入或粘贴，尚未接入 OCR、Word 导入或表格编辑。新功能入口和验收项目见 [M18 使用说明](docs/superpowers/specs/2026-10-24-editable-word-guide.md)。章节预设按公开教材目录核对，尚未与学科网页面逐项对照。
+扫描 PDF 仍以题图保留；可手工录入，或自行配置 Doc2X API 后识别单张题图。识别按服务额度计费，结果需人工校对，不包含整卷批量 OCR、Word 导入或可编辑表格。入口和自测步骤见 [M19 使用说明](docs/superpowers/specs/2026-10-25-doc2x-ocr-guide.md)；已有编辑及 Word 操作见 [M18 使用说明](docs/superpowers/specs/2026-10-24-editable-word-guide.md)。章节预设按公开教材目录核对，尚未与学科网页面逐项对照。
 
 ## 开发与交付
 
@@ -46,7 +47,7 @@ npm run dist
 npm run dist:mac
 ```
 
-Windows 发布产物位于 `release/<版本>/`。安装程序上传到 Releases，`node_modules`、构建目录和本机快捷方式不进入源码仓库。仓库保留历史测试脚本，本阶段没有新增或运行；请勿将 beta.4 的历史结果当作 beta.5 功能验收。
+Windows 发布产物位于 `release/<版本>/`。安装程序上传到 Releases，`node_modules`、构建目录和本机快捷方式不进入源码仓库。仓库保留历史测试脚本，本阶段没有新增或运行；请勿将历史测试结果当作 beta.5 或 beta.6 的功能验收。本阶段没有调用真实识别 API，也没有消耗用户识别额度。
 
 **历史记录：** Mac beta.4 已通过类型检查、114 项自动测试及三套界面回归；修复了 Electron 启动、PDF 协议读取、知识点下拉布局、旋转页出图和手动答案配对持久化。初次接手时 Electron 31 的拦截记录保留在[接手验证记录](docs/superpowers/specs/2026-10-23-mac-takeover-validation.md)，最新验证及发布边界见 [Mac beta.4 交付记录](docs/superpowers/specs/2026-10-23-mac-beta4-release.md)。
 
@@ -56,10 +57,13 @@ Windows beta.3 的 99 项测试、GUI 和 EXE 验证是历史基线。升级后�
 
 文档中确实记录了 **Doc2X 教师题库**：参考其导入、分类检索、选题组卷和导出流程，详见[模块对照](docs/superpowers/specs/2026-10-22-bank-experience-design.md)和[可编辑题目调研](docs/superpowers/specs/2026-10-22-editable-question-solutions-research.md)。官方[教师题库教程](https://doc2x.noedgeai.com/help/en/tutorials/teacher-question-bank.html)介绍的是独立 Web 应用；公开的 [doc2x-mcp 仓库](https://github.com/NoEdgeAI/doc2x-mcp)是 MCP 接入工具，不能据此认定整套教师题库产品开源。
 
-本仓库未接入 Doc2X SDK、API 或识别模型，Doc2X 属于产品参考及云识别候选。本轮编辑能力复用 Tiptap / MathLive，Word 导出复用 docx.js / mathml2omml，均在本机工作；选型与边界见 [M18 方案](docs/superpowers/plans/2026-10-24-editable-word-plan.md)。MinerU、PaddleOCR、Pix2Text 仍是后续识别候选。第三方许可及 mathml2omml 对应源码随安装包提供，见 [组件说明](resources/third-party-licenses/README.txt)。
+M19 已实现 Doc2X 单图 API 接入，默认关闭，用户使用自己的 Key 和额度；没有分发其识别引擎，也不声称整套 Doc2X 产品开源。本轮编辑能力复用 Tiptap / MathLive，Word 导出复用 docx.js / mathml2omml，均在本机工作；选型与边界见 [M18 方案](docs/superpowers/plans/2026-10-24-editable-word-plan.md)。识别结果使用 unified/remark 解析，受限文档与原图分开保存在本机。MinerU、PaddleOCR、Pix2Text 仍是后续本地识别候选。第三方许可及 mathml2omml 对应源码随安装包提供，见 [组件说明](resources/third-party-licenses/README.txt)。
 
 ## 开发记录
 
+- [M19 单题识别与校对方案](docs/superpowers/plans/2026-10-25-single-question-ocr-review-plan.md)
+- [M19 操作说明、费用与用户验收清单](docs/superpowers/specs/2026-10-25-doc2x-ocr-guide.md)
+- [M19 实际交付与检查记录](docs/superpowers/specs/2026-10-25-doc2x-ocr-delivery.md)
 - [M18 开发方案与后续计划](docs/superpowers/plans/2026-10-24-editable-word-plan.md)
 - [M18 交付记录](docs/superpowers/specs/2026-10-24-editable-word-delivery.md)
 - [M18 操作说明与用户验收清单](docs/superpowers/specs/2026-10-24-editable-word-guide.md)

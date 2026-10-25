@@ -4,6 +4,7 @@ import { join } from 'path'
 import { SCHEMA_V1, BUILTIN_TYPES, BUILTIN_DIFFICULTIES } from './schema'
 import { initializeChapterTemplates } from './chapterTemplates'
 import { initializeContentStorage } from './repositories/contentRepo'
+import { initializeOcrStorage } from './repositories/ocrRepo'
 
 export type DB = Database.Database
 
@@ -100,6 +101,7 @@ export function initDatabase(): void {
     db.exec('ALTER TABLE questions ADD COLUMN answer_height_px INTEGER')
   }
   initializeContentStorage(db)
+  initializeOcrStorage(db)
 }
 
 /** 仅测试/关闭时使用。 */

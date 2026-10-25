@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Group, Modal, SegmentedControl, Stack, Text } from '@mantine/core'
+import { ocrErrorMessage } from './ocrMessages'
 
 type Point = { x: number; y: number }
 type Selection = { start: Point; end: Point }
@@ -54,7 +55,7 @@ export function ImageCropDialog({ opened, sources, onClose, onSave }: {
       const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error('图片编码失败')), 'image/png'))
       await onSave(await blob.arrayBuffer(), `${source.label}裁图.png`)
       onClose()
-    } catch (e) { setError(String(e)) }
+    } catch (e) { setError(ocrErrorMessage(e)) }
     finally { setBusy(false) }
   }
   return <Modal opened={opened} onClose={() => { if (!busy) onClose() }} closeOnEscape={!busy} closeOnClickOutside={!busy}

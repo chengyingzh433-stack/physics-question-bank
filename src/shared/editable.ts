@@ -14,12 +14,21 @@ export interface EditableDocument {
   type: 'doc'
   content: EditableBlock[]
 }
+export interface ContentRecognition {
+  jobId: string
+  candidateRevision: number
+  sourceFingerprint: string
+  reviewState: 'reviewed' | 'needs_review'
+  /** 主动校对当前编辑稿时指向预期的新正式版本；修改正文后须清除。 */
+  reviewConfirmedRevision?: number
+}
 export interface QuestionContentInput {
   schemaVersion: 1
   questionMode: ContentMode
   answerMode: ContentMode
   questionBody: EditableDocument
   answerBody: EditableDocument
+  recognition?: { question?: ContentRecognition; answer?: ContentRecognition }
 }
 export interface QuestionContentDTO extends QuestionContentInput {
   questionId: number
