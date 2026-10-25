@@ -2,6 +2,11 @@
 let activeUsers = 0
 let moving = false
 
+/** 更新不能截断资料迁移或正在写入的资源。用户可稍后重试安装。 */
+export function assertStorageIdleForUpdate(): void {
+  if (moving || activeUsers) throw new Error('资料正在处理或迁移，请等待完成，或暂停识别任务后再安装更新。')
+}
+
 export async function withStorageUse<T>(action: () => Promise<T>): Promise<T> {
   if (moving) throw new Error('资料目录正在迁移，请完成后再操作')
   activeUsers++
