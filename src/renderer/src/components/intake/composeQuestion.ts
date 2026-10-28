@@ -1,7 +1,7 @@
 import type { IntakeDraft } from '@shared/intake'
 import { assetUrl } from '@shared/editable'
 
-export const roleNames = { stem: '题干', option: '选项', answer: '答案', analysis: '解析', figure: '题干配图', answerFigure: '答案配图' }
+export const roleNames = { question: '整道题', stem: '题干', option: '选项', answer: '答案', analysis: '解析', figure: '题干配图', answerFigure: '答案配图' }
 export const isAnswerPart = (role: string) => ['answer', 'analysis', 'answerFigure'].includes(role)
 export interface Composition { question: ArrayBuffer; answer: ArrayBuffer | null; questionUrl: string; answerUrl: string | null }
 /** Render only user-selected local components; never request OCR or remote resources. */
@@ -50,7 +50,7 @@ export async function composeQuestion(draft: IntakeDraft): Promise<Composition> 
     return { data: await blob.arrayBuffer(), url: URL.createObjectURL(blob) }
   }
   const question = await render(false)
-  if (!question) throw new Error('请先添加题干、选项或题干配图')
+  if (!question) throw new Error('请先添加整道题，或添加题干、选项及配图')
   try {
     const answer = await render(true)
     return { question: question.data, answer: answer?.data ?? null, questionUrl: question.url, answerUrl: answer?.url ?? null }

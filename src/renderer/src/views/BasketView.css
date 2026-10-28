@@ -13,3 +13,12 @@
 .basket-preview-answer > p { font-weight: 600; font-size: .9em; }
 .basket-preview-new-page { border-top: 1px dashed #a0a5ae; padding-top: 24pt; margin-top: 24pt; }
 @media (max-width: 1050px) { .basket-workspace { grid-template-columns: minmax(0, 1fr); } .basket-settings { position: static; grid-row: 1; } }
+
+.basket-view { max-width: 1440px; margin: 0 auto; }
+.basket-workspace { gap: 22px; grid-template-columns: minmax(0, 1fr) 300px; }
+.basket-settings { max-height: calc(100dvh - 100px); overflow-y: auto; border-color: var(--workbench-border); }
+.basket-question-thumbnail { border: 1px solid #eef0f1; border-radius: 6px; padding: 18px; }
+.basket-row-options { margin: 12px 0; font-size: 12px; color: var(--workbench-muted); }
+.basket-row-options summary { cursor: pointer; }
+@media (max-width: 1000px) { .basket-workspace { grid-template-columns: minmax(0, 1fr) 270px; gap: 12px; } }
+@media (max-width: 760px) { .basket-workspace { grid-template-columns: 1fr; } .basket-settings { position: static; max-height: none; } }

@@ -24,3 +24,23 @@ body {
 *::-webkit-scrollbar-thumb:hover {
   background: var(--mantine-color-gray-5);
 }
+
+/* Calm desktop workbench: shared surfaces, typography and keyboard focus. */
+:root { --workbench-bg: #f3f5f6; --workbench-muted: #667581; --workbench-border: #dfe5e8; }
+[data-mantine-color-scheme='dark'] { --workbench-bg: #191e23; --workbench-muted: #a1adb7; --workbench-border: #374149; }
+body { font-feature-settings: 'ss01'; }
+:focus-visible { outline: 2px solid var(--mantine-color-sky-6); outline-offset: 3px; }
+.library-shell .mantine-AppShell-main { background: var(--workbench-bg); }
+.library-shell .mantine-AppShell-header { border-bottom: 1px solid var(--workbench-border); }
+.library-shell .mantine-AppShell-navbar { border-right: 1px solid var(--workbench-border); gap: 8px; }
+.library-shell .mantine-NavLink-root { border-radius: 9px; min-height: 44px; }
+.library-shell .mantine-NavLink-root[data-active] { font-weight: 650; }
+.brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--mantine-color-sky-7); color: white; }
+.brand-name { font-size: 18px; letter-spacing: .5px; }
+.nav-caption { font-size: 11px; color: var(--workbench-muted); padding: 12px 12px 8px; letter-spacing: 2px; }
+.nav-tools { margin-top: 28px; }
+.nav-footnote { margin-top: auto; padding: 16px 8px; font-size: 12px; color: var(--workbench-muted); border-top: 1px solid var(--workbench-border); }
+.local-dot { display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; background: var(--mantine-color-sky-6); }
+.eyebrow { color: var(--mantine-color-sky-7); font-size: 12px; font-weight: 600; letter-spacing: 1px; margin-bottom: 10px; }
+.page-heading h1 { font-size: clamp(24px, 2.6vw, 34px); letter-spacing: -.6px; }
+.mantine-Input-label { margin-bottom: 4px; }

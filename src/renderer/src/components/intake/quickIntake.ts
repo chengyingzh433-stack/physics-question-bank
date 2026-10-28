@@ -9,7 +9,7 @@ export async function prepareSingleImage(draft: IntakeDraft): Promise<IntakeDraf
   const source = draft.sources[0]
   const asset = await window.api.addIntakeCrop(draft.id, source.id, 1, null, await cropPage(assetUrl(source.previewPath), null))
   return window.api.saveIntakeDraft(draft.id, draft.revision, draft.title,
-    [{ id: crypto.randomUUID(), role: 'stem', label: '', text: '', assetId: asset.id }])
+    [{ id: crypto.randomUUID(), role: 'question', label: '', text: '', assetId: asset.id }])
 }
 
 export async function prepareIntakeReview(draft: IntakeDraft): Promise<IntakeDraft> {

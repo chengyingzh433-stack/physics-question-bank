@@ -217,6 +217,7 @@ export default function QuestionEditorView() {
     if (dirty && !window.confirm(recoveryError ? '本机恢复副本未能写入。建议取消并暂存，仍要放弃当前修改并返回？' : '当前修改尚未提交，本机恢复副本已保留。返回后可以重新进入题目恢复，是否返回？')) return
     navigate(from)
   }
+  const [compareOriginal, setCompareOriginal] = useState(false)
   const body = tab === 'question' ? content.questionBody : content.answerBody
   const mode = tab === 'question' ? content.questionMode : content.answerMode
   const recognition = content.recognition?.[tab]
@@ -236,7 +237,7 @@ export default function QuestionEditorView() {
           <Button disabled={!data || !dirty || busy} loading={saving} leftSection={<IconDeviceFloppy size={16} />} onClick={() => void save()}>{intake?.status === 'reviewing' ? '暂存' : '保存修改'}</Button></Group>
       </Group>
     </Paper>
-    {loading ? <Group justify="center" p="xl"><Loader /><Text>读取题目…</Text></Group> : <Stack p="md">
+    {loading ? <Group justify="center" p="xl"><Loader /><Text>读取题目…</Text></Group> : <Stack className="editor-workbench" gap="sm">
       {error && <Alert color="red" title="暂未完成操作">{error}<Text size="xs" mt="xs">当前编辑内容仍保留在此页。</Text>
         {data && /标签/.test(error) && <Button mt="sm" variant="light" disabled={busy} onClick={async () => {
           if (!window.confirm('用题库中的最新标签替换当前未保存的标签？正文修改会保留。')) return
@@ -263,19 +264,20 @@ export default function QuestionEditorView() {
           <div className="editor-paper"><DocumentPreview document={content.questionBody} assets={data.assets} /></div>
         </Stack></Paper> : <>
         <Group justify="space-between" gap="xs">
-          <Text size="sm" c="dimmed">{intake?.status === 'reviewing' ? '1 选择原稿 → 2 校对内容与标签 → 3 保存入库' : '修改正文或标签后，点击保存修改。'} · 原稿始终保留</Text>
+          <Text size="sm" c="dimmed">{intake?.status === 'reviewing' ? '第 2 步 / 共 2 步 · 校对内容与标签' : '修改正文或标签后，点击保存修改。'} · 原稿始终保留</Text>
           <Group gap="xs"><Button size="xs" variant="light" disabled={busy} onClick={() => setOcrOpen(true)}>图片转文字 / 识别</Button>
-            <Button size="xs" variant="subtle" onClick={() => document.getElementById('question-labels')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>选标签</Button></Group>
+            <Button size="xs" variant={compareOriginal ? 'light' : 'default'} onClick={() => setCompareOriginal((value) => !value)}>{compareOriginal ? '收起原图对照' : '对照原图'}</Button></Group>
         </Group>
+        <div className="editor-workbench-grid"><div className="editor-document-area">
         <Tabs value={tab} onChange={(value) => { if (!busy && value) setTab(value as 'question' | 'answer') }}>
           <Tabs.List><Tabs.Tab value="question" disabled={busy}>题干</Tabs.Tab><Tabs.Tab value="answer" disabled={busy}>答案与解析</Tabs.Tab></Tabs.List>
         </Tabs>
-        <div className="question-editor-columns">
-          <Paper withBorder p="md" className="original-panel">
+        <div className={`question-editor-columns ${compareOriginal ? 'with-original' : ''}`}>
+          {compareOriginal && <Paper withBorder p="md" className="original-panel">
             <Group justify="space-between" mb="sm"><Text fw={600}>{tab === 'question' ? '原题图' : '原答案图'}</Text><Badge variant="outline" color="gray">原件保留</Badge></Group>
             {original ? <img src={assetUrl(original)} alt={tab === 'question' ? '完整原题图' : '完整原答案图'} className="original-question-image" />
               : <Text c="dimmed" py="xl">{tab === 'question' ? '此题暂无原题图' : '此题尚未匹配原答案图，可在右侧手动编写答案。'}</Text>}
-          </Paper>
+          </Paper>}
           <Paper withBorder p="md" className="editable-panel">
             <Stack gap="sm">
               {body.content.some((b) => b.type === 'image') && !body.content.some((b) => b.type === 'paragraph' && b.content?.some((n) => n.type === 'text' || n.type === 'inlineMath')) &&
@@ -312,7 +314,8 @@ export default function QuestionEditorView() {
             </Stack>
           </Paper>
         </div>
-        <div id="question-labels"><QuestionMetadataFields value={metadata} onChange={(next) => { backup(content, next); setMetadata(next) }} disabled={busy} onBusy={setMetadataBusy} /></div>
+        </div>
+        <aside id="question-labels"><QuestionMetadataFields value={metadata} onChange={(next) => { backup(content, next); setMetadata(next) }} disabled={busy} onBusy={setMetadataBusy} compact /></aside></div>
         {intake && <details><summary>原稿与分区组题</summary><Text size="xs" c="dimmed">原稿和组成部分保留在本机。重新选择区域可从原稿页复制为新草稿。</Text>
           <Button mt="xs" size="xs" variant="default" disabled={busy || dirty || ocrDirty} onClick={() => navigate(`/intake/${intake.id}`)}>查看原稿与组成部分</Button></details>}
         <Paper withBorder p="sm" className="intake-publish-bar"><Group justify="space-between" align="center">

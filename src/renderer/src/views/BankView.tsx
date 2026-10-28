@@ -5,7 +5,7 @@ import {
   Loader, Modal, NavLink, Pagination, Paper, ScrollArea, Select,
   Stack, Text, TextInput, Title, Tooltip
 } from '@mantine/core'
-import { useDebouncedValue, useMediaQuery } from '@mantine/hooks'
+import { useDebouncedValue } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
 import { IconFolder, IconPlus, IconSearch, IconFilter, IconShoppingCart, IconPencil, IconTrash } from '@tabler/icons-react'
 import type {
@@ -25,7 +25,6 @@ const options = (rows: { id: number; name: string }[]) => rows.map((r) => ({ val
 
 function BankView(): React.JSX.Element {
   const navigate = useNavigate()
-  const wide = useMediaQuery('(min-width: 1100px)')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [questions, setQuestions] = useState<BankQuestionDTO[]>([])
   const [types, setTypes] = useState<QuestionTypeDTO[]>([])
@@ -199,19 +198,18 @@ function BankView(): React.JSX.Element {
   </Stack>
 
   return <div className="bank-workspace">
-    {wide && <Paper withBorder className="bank-sidebar"><ScrollArea h="100%">{filterPanel}</ScrollArea></Paper>}
-    <Drawer opened={!wide && filtersOpen} onClose={() => setFiltersOpen(false)} title="分类与筛选" size={300} closeButtonProps={{ 'aria-label': '关闭筛选' }}>
+    <Drawer opened={filtersOpen} onClose={() => setFiltersOpen(false)} title="分类与筛选" size={300} closeButtonProps={{ 'aria-label': '关闭筛选' }}>
       {filterPanel}<Button fullWidth mt="md" onClick={() => setFiltersOpen(false)}>查看结果</Button>
     </Drawer>
     <div className="bank-content">
       <Group justify="space-between" wrap="wrap">
-        <div><Title order={3}>我的题库</Title><Text size="sm" c="dimmed" lineClamp={1}>{scopeName}</Text></div>
-        <Button variant="light" leftSection={<IconShoppingCart size={16} />} onClick={() => navigate('/basket')} disabled={busy}>
+        <div><Title order={2}>我的题库</Title><Text size="sm" c="dimmed" lineClamp={1}>{scopeName}</Text></div>
+        <Group gap="xs"><Button variant="default" leftSection={<IconPlus size={16} />} onClick={() => navigate('/intake')}>录入题目</Button><Button variant="light" leftSection={<IconShoppingCart size={16} />} onClick={() => navigate('/basket')} disabled={busy}>
           组卷篮 · {inBasket.size}
-        </Button>
+        </Button></Group>
       </Group>
       <Group gap="xs" wrap="nowrap">
-        {!wide && <Button variant="default" leftSection={<IconFilter size={16} />} onClick={() => setFiltersOpen(true)}>分类 / 筛选{activeCount ? ` (${activeCount})` : ''}</Button>}
+        <Button variant="default" leftSection={<IconFilter size={16} />} onClick={() => setFiltersOpen(true)}>分类 / 筛选{activeCount ? ` (${activeCount})` : ''}</Button>
         <TextInput style={{ flex: 1 }} aria-label="搜索资料和标签" placeholder="搜索试卷名、出处、题型、章节、知识点"
           leftSection={<IconSearch size={16} />} value={search} disabled={busy} onChange={(e) => changeSearch(e.currentTarget.value)} />
         {activeCount > 0 && <Button variant="subtle" size="xs" disabled={busy} onClick={clearFilters}>清空条件</Button>}
@@ -266,12 +264,12 @@ function BankView(): React.JSX.Element {
               <Text size="xs" c="dimmed" lineClamp={1} mih={18}>{[q.effective_year, q.effective_source].filter(Boolean).join(' · ')}</Text>
               {labels.length > 0 && <Group gap={4} mt="xs">{labels.slice(0, 3).map((label, i) => <Badge key={i} size="xs" variant="outline" title={label}>{label}</Badge>)}
                 {labels.length > 3 && <Badge size="xs" color="gray" title={labels.join('、')}>另 {labels.length - 3} 项</Badge>}</Group>}
-              <Button size="xs" fullWidth mt="sm" variant="light" disabled={busy}
+              <Group gap="xs" className="bank-card-actions"><Button size="xs" variant="subtle" disabled={busy}
                 onClick={() => navigate(`/questions/${q.id}/edit?from=/bank`)}>编辑题目 / 标签</Button>
-              <Button size="xs" fullWidth mt="sm" variant={inBasket.has(q.id) ? 'light' : 'default'}
+              <Button size="xs" variant={inBasket.has(q.id) ? 'light' : 'default'}
                 disabled={busy || draftSetId == null} onClick={() => toggleBasket(q.id)}>
-                {inBasket.has(q.id) ? '已入篮 · 点击移出' : '加入组卷篮'}
-              </Button>
+                {inBasket.has(q.id) ? '已入篮 · 移出' : '加入组卷篮'}
+              </Button></Group>
             </Card>})}
           </div>}
       </ScrollArea>

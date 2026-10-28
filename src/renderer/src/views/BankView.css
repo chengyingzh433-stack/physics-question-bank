@@ -12,3 +12,12 @@
 .saved-question-paper { background: white; color: #1b2433; padding: 16px; overflow-wrap: anywhere; border-radius: 5px; }
 .saved-question-original { display: block; width: 100%; height: auto; background: white; }
 .bank-image-button:focus-visible { outline: 2px solid var(--mantine-color-sky-5); outline-offset: 2px; }
+
+.bank-workspace { height: calc(100dvh - 108px); }
+.bank-content { gap: 14px; }
+.bank-grid { grid-template-columns: repeat(auto-fill, minmax(285px, 1fr)); gap: 18px; padding: 2px 2px 16px; }
+.bank-card { border-color: var(--workbench-border); transition: border-color .15s, box-shadow .15s; }
+.bank-card:hover { border-color: var(--mantine-color-sky-3); box-shadow: 0 6px 22px #1c393408; }
+.bank-image-button { height: 220px; border-radius: 6px; padding: 14px; border: 1px solid #eef0f1; }
+.bank-card-actions { margin-top: auto; padding-top: 14px; justify-content: space-between; flex-wrap: nowrap; }
+@media (max-width: 800px) { .bank-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); } }
