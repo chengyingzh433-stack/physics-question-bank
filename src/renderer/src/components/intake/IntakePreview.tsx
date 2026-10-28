@@ -118,7 +118,7 @@ export function IntakePreview({ source, disabled, readOnly = false, onPage, onSe
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true; renderTask?.cancel() }
   }, [source.id, page, ready])
-  return <Stack gap="sm">
+  return <Stack gap="xs" className="intake-preview">
     {source.kind !== 'image' && <Group justify="space-between">
       <Group gap="xs"><Button size="xs" variant="default" disabled={disabled || loading || page <= 1} onClick={() => setPage((p) => p - 1)}>上一页</Button>
         <NumberInput aria-label="原稿页码" value={page} min={1} max={count} w={80} disabled={disabled || loading} allowDecimal={false}

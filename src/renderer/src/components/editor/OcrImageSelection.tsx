@@ -7,7 +7,7 @@ export function OcrImageSelection({ url, disabled, onChange, purpose = 'ocr' }: 
   url: string; disabled: boolean; purpose?: 'ocr' | 'intake'
   onChange: (crop: OcrCrop | null, scale: number, valid: boolean) => void
 }) {
-  const [mode, setMode] = useState('full')
+  const [mode, setMode] = useState(purpose === 'intake' ? 'region' : 'full')
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
   const [selection, setSelection] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
   const [scale, setScale] = useState('1')
@@ -28,11 +28,11 @@ export function OcrImageSelection({ url, disabled, onChange, purpose = 'ocr' }: 
     return { x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
       y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)) }
   }
-  return <Stack gap="sm">
+  return <Stack gap="xs" className={purpose === 'intake' ? 'intake-selection' : undefined}>
     <Group justify="space-between" align="end">
-      <div><Text fw={500} size="sm" mb={4}>{purpose === 'intake' ? '选取范围' : '识别范围'}</Text><SegmentedControl value={mode} disabled={disabled}
-        data={[{ value: 'full', label: '整张原图' }, { value: 'region', label: '拖动框选一部分' }]} onChange={setMode} /></div>
-      <Select label={purpose === 'intake' ? '选区副本尺寸' : '上传副本尺寸'} description="只缩小副本，原图保留。" value={scale} allowDeselect={false}
+      <div>{purpose !== 'intake' && <Text fw={500} size="sm" mb={4}>识别范围</Text>}<SegmentedControl size="xs" value={mode} disabled={disabled}
+        data={[{ value: 'full', label: '使用整页' }, { value: 'region', label: '框选一道题' }]} onChange={setMode} /></div>
+      <Select size="xs" w={120} aria-label="副本尺寸" label={purpose === 'intake' ? undefined : '上传副本尺寸'} description={purpose === 'intake' ? undefined : '只缩小副本，原图保留。'} value={scale} allowDeselect={false}
         disabled={disabled} data={[{ value: '1', label: '原始尺寸' }, { value: '0.75', label: '75%' }, { value: '0.5', label: '50%' }, { value: '0.25', label: '25%' }]}
         onChange={(value) => { if (value) setScale(value) }} />
     </Group>
@@ -47,7 +47,7 @@ export function OcrImageSelection({ url, disabled, onChange, purpose = 'ocr' }: 
           if (!dragging.current) return
           const next = point(event); setSelection((old) => old ? { ...old, x2: next.x, y2: next.y } : old)
         }} onPointerUp={() => { dragging.current = false }} onPointerCancel={() => { dragging.current = false }}>
-        <img src={url} alt="本次识别的原图" draggable={false} onLoad={(event) => {
+        <img src={url} alt={purpose === 'intake' ? '录题原稿，可拖动框选' : '本次识别的原图'} draggable={false} onLoad={(event) => {
           setSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight }); setError('')
         }} onError={() => { setSize(null); setError('原图无法读取，请返回检查原图文件。') }} />
         {mode === 'region' && selection && <div className="crop-selection" style={{

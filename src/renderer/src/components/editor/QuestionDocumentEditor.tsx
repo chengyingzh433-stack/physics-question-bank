@@ -146,7 +146,7 @@ export function QuestionDocumentEditor({ questionId, initialDocument, assets, di
         onClick={() => { rememberPosition(); setCropOpen(true) }}>原图裁取</Button>
     </Group>
     {error && <Alert color="red" withCloseButton onClose={() => setError('')}>{error}</Alert>}
-    {imageSelected && <Group className="image-controls" align="end" gap="sm">
+    {imageSelected && <details className="image-controls"><summary>调整所选图片：大小、对齐与图注</summary><Group align="end" gap="sm" mt="sm">
       <NumberInput label="配图宽度 (%)" value={imageAttributes.widthPercent ?? 60} min={10} max={100} step={5} clampBehavior="strict" w={120} disabled={busy}
         onChange={(value) => { if (typeof value === 'number') editor?.commands.updateAttributes('image', { widthPercent: Math.max(10, Math.min(100, value)) }) }} />
       <Select label="对齐" data={[{ value: 'left', label: '居左' }, { value: 'center', label: '居中' }, { value: 'right', label: '居右' }]}
@@ -156,7 +156,7 @@ export function QuestionDocumentEditor({ questionId, initialDocument, assets, di
         onChange={(event) => editor?.commands.updateAttributes('image', { caption: event.currentTarget.value })} />
       <ActionIcon aria-label="删除选中配图" color="red" variant="subtle" disabled={busy}
         onClick={() => editor?.chain().focus().deleteSelection().run()}><IconTrash size={18} /></ActionIcon>
-    </Group>}
+    </Group></details>}
     <div className={`editor-paper ${busy ? 'disabled' : ''}`}><EditorContent editor={editor} /></div>
     <Text size="xs" c="dimmed">Enter 新建段落，Shift + Enter 换行；双击公式可修改，点选图片可调整宽度、对齐和图注。</Text>
     <FormulaDialog opened={formula != null} value={formula?.latex ?? ''} onChange={(latex) => setFormula((prev) => prev ? { ...prev, latex } : prev)}

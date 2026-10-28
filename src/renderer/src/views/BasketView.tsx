@@ -120,10 +120,10 @@ export default function BasketView(): React.JSX.Element {
   if (error && items.length === 0) return <Alert color="red" title="组卷篮加载失败">{error}<Button ml="sm" onClick={() => void reload()}>重试</Button></Alert>
   if (items.length === 0) return <EmptyState icon={IconClipboardList} title="组卷篮为空" description="在题库中选择题目，然后编辑内容或直接用原图组卷。" actionLabel="去题库选题" onAction={() => navigate('/bank')} />
 
-  return <Stack pos="relative" gap="md">
+  return <Stack pos="relative" gap="md" className="basket-view">
     <LoadingOverlay visible={busy} />
     <Group justify="space-between">
-      <div><Text size="xl" fw={700}>组卷与 Word 导出</Text><Text size="sm" c="dimmed">{items.length} 题 · {editableCount} 题使用可编辑内容 · {items.length - editableCount} 题使用原图</Text></div>
+      <div><Text size="xl" fw={700}>组一份试卷</Text><Text size="sm" c="dimmed">{items.length} 题 · {editableCount} 题使用编辑稿 · {items.length - editableCount} 题使用原图</Text></div>
       <Button variant="default" disabled={busy} onClick={() => run(async () => { await persistAll(); navigate('/bank') })}>继续选题</Button>
     </Group>
     {error && <Alert color="red" title="请先处理以下问题" withCloseButton onClose={() => setError('')}>{error}</Alert>}
@@ -137,8 +137,8 @@ export default function BasketView(): React.JSX.Element {
               <Stack gap={4}>
                 <Text fw={600}>第 {index + 1} 项 <Text span size="sm" c="dimmed">{q?.paper_name} · 原第 {q?.order_in_paper ?? '—'} 题</Text></Text>
                 <Group gap={6}>
-                  <Badge color={detail?.content?.questionMode === 'editable' ? 'teal' : 'gray'} variant="light">{detail?.content?.questionMode === 'editable' ? '可编辑题干' : '原图题干'}</Badge>
-                  <Badge color={detail?.content?.answerMode === 'editable' ? 'teal' : 'gray'} variant="outline">{detail?.content?.answerMode === 'editable' ? '可编辑答案' : q?.answer_image_path ? '原图答案' : '暂无答案'}</Badge>
+                  <Badge color={detail?.content?.questionMode === 'editable' ? 'teal' : 'gray'} variant="light">{detail?.content?.questionMode === 'editable' ? detail.content.questionBody.content.some((block) => block.type === 'paragraph' && block.content?.some((node) => node.type === 'text' || node.type === 'inlineMath')) ? '图文编辑稿' : '图片编辑稿' : '原图题干'}</Badge>
+                  <Badge color={detail?.content?.answerMode === 'editable' ? 'teal' : 'gray'} variant="outline">{detail?.content?.answerMode === 'editable' ? '答案编辑稿' : q?.answer_image_path ? '原图答案' : '暂无答案'}</Badge>
                 </Group>
               </Stack>
               <Group gap={3} wrap="nowrap">
@@ -150,12 +150,12 @@ export default function BasketView(): React.JSX.Element {
                 })}><IconTrash size={16} /></ActionIcon></Tooltip>
               </Group>
             </Group>
-            <Group grow align="end" mb="sm">
+            <details className="basket-row-options"><summary>分组与题号</summary><Group grow align="end" mb="sm" mt="sm">
               <TextInput label="本题之前的分组标题" placeholder="例如：一、选择题" size="xs" maxLength={200} value={headers[item.id] ?? ''}
                 onChange={(event) => setHeaders({ ...headers, [item.id]: event.currentTarget.value })} />
               <TextInput label="题号（Word / PPT）" placeholder={`自动：${index + 1}`} size="xs" maxLength={30} value={numbers[item.id] ?? ''}
                 onChange={(event) => setNumbers({ ...numbers, [item.id]: event.currentTarget.value })} />
-            </Group>
+            </Group></details>
             <div className="basket-question-thumbnail">{detail && <QuestionBody detail={detail} />}</div>
             <Button mt="sm" variant="light" size="xs" leftSection={<IconEdit size={14} />} onClick={() => void openEditor(item.question_id)}>编辑题目与答案</Button>
           </Paper>
@@ -163,12 +163,12 @@ export default function BasketView(): React.JSX.Element {
       </Stack>
       <Paper withBorder radius="md" p="md" className="basket-settings">
         <Stack gap="sm">
-          <Text fw={700}>Word 排版</Text>
+          <Text fw={700}>排版与导出</Text>
           <TextInput label="试卷标题" maxLength={200} value={options.title} onChange={(event) => setOptions({ ...options, title: event.currentTarget.value })} />
           <TextInput label="副标题 / 考试信息" placeholder="姓名：____  班级：____" maxLength={500} value={options.subtitle} onChange={(event) => setOptions({ ...options, subtitle: event.currentTarget.value })} />
           <Select label="参考答案" value={options.answerMode} allowDeselect={false} onChange={(value) => setOptions({ ...options, answerMode: value as WordExportOptions['answerMode'] })}
             data={[{ value: 'none', label: '不含答案' }, { value: 'append', label: '末尾参考答案' }, { value: 'inline', label: '每题后紧跟答案' }]} />
-          <Group grow>
+          <details className="basket-row-options"><summary>更多排版设置</summary><Stack gap="sm" mt="sm"><Group grow>
             <NumberInput label="字号（磅）" value={options.fontSize} min={8} max={24} step={1} allowDecimal={false} allowNegative={false}
               onChange={(value) => setOptions({ ...options, fontSize: typeof value === 'number' ? value : 12 })} />
             <NumberInput label="边距（毫米）" value={options.marginMm} min={10} max={35} step={1} allowNegative={false}
@@ -177,13 +177,14 @@ export default function BasketView(): React.JSX.Element {
           <NumberInput label="题后留白（磅）" value={options.questionSpacing} min={0} max={60} allowNegative={false}
             onChange={(value) => setOptions({ ...options, questionSpacing: typeof value === 'number' ? value : 12 })} />
           <Switch label="每道题从新页开始" checked={options.questionStartNewPage} onChange={(event) => setOptions({ ...options, questionStartNewPage: event.currentTarget.checked })} />
+          </Stack></details>
           <Button variant="default" size="xs" disabled={!settingsDirty} onClick={() => run(async () => {
             await persistAll(); if (setId != null) await loadItems(setId)
             notifications.show({ message: '排版设置已保存', color: 'green' })
           })}>{settingsDirty ? '保存排版与题号设置' : '排版设置已保存'}</Button>
           <Button variant="light" leftSection={<IconEye size={16} />} onClick={() => run(async () => { await persistAll(); setPreview(true) })}>预览试卷内容</Button>
           <Button leftSection={<IconFileTypeDocx size={18} />} onClick={() => void exportFile('docx')}>导出 Word</Button>
-          <Text size="xs" c="dimmed">已选可编辑内容的题目导出文字、公式和独立配图；其余保留原图。Word / WPS 内可继续排版。</Text>
+          <Text size="xs" c="dimmed">Word 使用已保存的编辑稿或原图。图片仍是图片，只有已输入或识别并校对的文字才能逐字修改。</Text>
           <Divider label="原图导出" />
           <Group grow>
             <Button variant="default" size="xs" leftSection={<IconFileExport size={14} />} onClick={() => void exportFile('pdf')}>原图 PDF</Button>

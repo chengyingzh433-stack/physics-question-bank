@@ -7,7 +7,7 @@ import {
 import { useDisclosure } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
 import {
-  IconHome2,
+  IconHome2, IconBook2, IconPlus,
   IconDatabase,
   IconClipboardList,
   IconTemplate,
@@ -25,7 +25,7 @@ import { SoftwareUpdateDialog } from '../updates/SoftwareUpdateDialog'
 import { useSoftwareUpdates } from '../updates/useSoftwareUpdates'
 
 const NAV = [
-  { to: '/intake', label: '录题', icon: IconClipboardList },
+  { to: '/intake', label: '录入题目', icon: IconPlus },
   { to: '/bank', label: '我的题库', icon: IconDatabase },
   { to: '/basket', label: '组卷篮', icon: IconClipboardList },
 ]
@@ -124,9 +124,10 @@ export function LibraryLayout() {
 
   return (
     <AppShell
-      header={{ height: 56 }}
-      navbar={{ width: 220, breakpoint: 'sm', collapsed: { mobile: !mobileOpen } }}
-      padding="md"
+      className="library-shell"
+      header={{ height: 60 }}
+      navbar={{ width: 164, breakpoint: 'sm', collapsed: { mobile: !mobileOpen } }}
+      padding="lg"
     >
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
@@ -134,9 +135,8 @@ export function LibraryLayout() {
             <ActionIcon variant="subtle" onClick={toggle} hiddenFrom="sm">
               <IconMenu2 size={18} />
             </ActionIcon>
-            <Text fw={700} c="sky.7">
-              物理教师题库管理系统
-            </Text>
+            <span className="brand-mark"><IconBook2 size={22} /></span><Text fw={700} className="brand-name">物理题库</Text>
+            <Text size="xs" c="dimmed" visibleFrom="sm">教师的备课工作台</Text>
             {version && <Badge variant="light" size="sm">{version.includes('beta') ? '测试版 ' : ''}{version}</Badge>}
           </Group>
           <Group gap="xs">
@@ -161,7 +161,8 @@ export function LibraryLayout() {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="xs">
+      <AppShell.Navbar p="sm">
+        <Text className="nav-caption">工作区</Text>
         {NAV.map((item) => {
           const active =
             item.to === '/intake'
@@ -172,6 +173,7 @@ export function LibraryLayout() {
               key={item.to}
               component={Link}
               to={item.to}
+              onClick={() => { if (mobileOpen) toggle() }}
               label={item.label}
               leftSection={<item.icon size={18} />}
               active={active}
@@ -185,10 +187,11 @@ export function LibraryLayout() {
             />
           )
         })}
-        <details style={{ marginTop: 24 }}><summary style={{ cursor: 'pointer', padding: 12, fontSize: 13 }}>更多工具</summary>
+        <details className="nav-tools"><summary style={{ cursor: 'pointer', padding: 12, fontSize: 13 }}>更多工具</summary>
           <NavLink component={Link} to="/papers" label="整卷 PDF 裁切" leftSection={<IconHome2 size={18} />} active={location.pathname === '/papers'} />
           <NavLink component={Link} to="/templates" label="题型与模板" leftSection={<IconTemplate size={18} />} active={location.pathname === '/templates'} />
         </details>
+        <div className="nav-footnote"><span className="local-dot" />本机题库<Text size="xs" c="dimmed" mt={6}>原稿与编辑内容分别保留</Text></div>
       </AppShell.Navbar>
 
       <AppShell.Main>

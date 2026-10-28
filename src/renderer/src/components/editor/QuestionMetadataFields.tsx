@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Alert, Badge, Button, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Text, TextInput } from '@mantine/core'
+import { Alert, Button, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Text, TextInput } from '@mantine/core'
 import type { ChapterDTO, DifficultyDTO, KnowledgePointDTO, QuestionTypeDTO } from '@shared/types'
 import type { QuestionMetadataInput } from '@shared/editable'
 import { ChapterPicker } from '../ChapterPicker'
 import { KnowledgePointPicker } from '../KnowledgePointPicker'
 import { ocrErrorMessage } from './ocrMessages'
 
-export function QuestionMetadataFields({ value, onChange, disabled, onBusy }: {
-  value: QuestionMetadataInput; onChange: (value: QuestionMetadataInput) => void; disabled: boolean; onBusy: (busy: boolean) => void
+export function QuestionMetadataFields({ value, onChange, disabled, onBusy, compact = false }: {
+  compact?: boolean; value: QuestionMetadataInput; onChange: (value: QuestionMetadataInput) => void; disabled: boolean; onBusy: (busy: boolean) => void
 }) {
   const [types, setTypes] = useState<QuestionTypeDTO[]>([]), [chapters, setChapters] = useState<ChapterDTO[]>([])
   const [points, setPoints] = useState<KnowledgePointDTO[]>([]), [difficulties, setDifficulties] = useState<DifficultyDTO[]>([])
@@ -31,10 +31,10 @@ export function QuestionMetadataFields({ value, onChange, disabled, onBusy }: {
   }
   const refreshChapters = useCallback((rows: ChapterDTO[]) => setChapters(rows), [])
   const locked = disabled || loading || Boolean(error)
-  return <Paper withBorder p="md"><Stack gap="sm">
-    <Group justify="space-between"><Text fw={600}>标签与来源</Text><Badge variant="light" color="gray">选填 · 与题目一起保存</Badge></Group>
+  return <Paper withBorder p="md" className="question-metadata"><Stack gap="sm">
+    <Group justify="space-between"><Text fw={600}>标签与来源</Text><Text size="xs" c="dimmed">选填 · 随题保存</Text></Group>
     {error && <Alert color="red">{error}<Button size="xs" ml="sm" disabled={disabled} onClick={() => setRetry((v) => v + 1)}>重新读取标签</Button></Alert>}
-    <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+    <SimpleGrid cols={compact ? 1 : { base: 1, sm: 3 }} spacing="sm">
       <Select label="题型" searchable clearable size="xs" disabled={locked} placeholder="选择题型"
         data={types.map((r) => ({ value: String(r.id), label: r.name }))} value={value.typeId === null ? null : String(value.typeId)}
         onChange={(v) => change({ typeId: v ? Number(v) : null })} />
@@ -46,7 +46,7 @@ export function QuestionMetadataFields({ value, onChange, disabled, onBusy }: {
     </SimpleGrid>
     <KnowledgePointPicker points={points} value={value.knowledgePointIds} disabled={locked}
       onChange={(ids) => change({ knowledgePointIds: ids })} onCreate={createPoint} />
-    <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+    <SimpleGrid cols={compact ? 1 : { base: 1, sm: 2 }} spacing="sm">
       <NumberInput label="年份" size="xs" value={value.year ?? ''} min={1900} max={2100} allowDecimal={false} allowNegative={false}
         disabled={disabled} placeholder="留空沿用原资料年份" onChange={(v) => change({ year: typeof v === 'number' ? v : null })} />
       <TextInput label="出处" size="xs" value={value.source ?? ''} maxLength={300} disabled={disabled}

@@ -54,3 +54,22 @@ body { --keyboard-zindex: 500; }
 #question-labels { scroll-margin-top: 112px; }
 .intake-publish-bar { position: fixed; bottom: 0; left: 0; right: 0; border-radius: 0; padding: 12px 20px; }
 .intake-start { border: 2px dashed var(--mantine-color-sky-3); background: var(--mantine-color-default); }
+
+/* The question and its labels share one workspace. Original comparison is optional. */
+.question-editor-view { background: var(--workbench-bg); }
+.question-editor-header { padding: 14px 24px; border: 0; border-bottom: 1px solid var(--workbench-border); }
+.editor-workbench { max-width: 1700px; margin: 0 auto; padding: 16px 24px 90px; }
+.editor-workbench-grid { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 20px; align-items: start; }
+.editor-document-area { min-width: 0; }
+.editor-document-area > .mantine-Tabs-root { margin-bottom: 12px; }
+.question-editor-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.question-editor-columns.with-original { grid-template-columns: minmax(220px, .8fr) minmax(300px, 1.2fr); }
+.original-panel { top: 104px; max-height: calc(100vh - 190px); }
+#question-labels { position: sticky; top: 100px; max-height: calc(100vh - 185px); overflow-y: auto; }
+.question-metadata { background: var(--mantine-color-body); }
+.editor-paper { padding: 24px 32px; border-color: var(--workbench-border); }
+.editor-paper .tiptap { min-height: 330px; }
+.editable-panel { box-shadow: 0 5px 20px #22352f04; }
+.intake-publish-bar { padding: 12px 24px; border: 0; border-top: 1px solid var(--workbench-border); box-shadow: 0 -4px 24px #15262406; }
+@media (max-width: 1050px) { .editor-workbench-grid { grid-template-columns: minmax(0, 1fr) 240px; gap: 12px; } .question-editor-columns.with-original { grid-template-columns: 1fr; } .original-panel { position: static; max-height: 300px; } }
+@media (max-width: 760px) { .editor-workbench-grid { grid-template-columns: 1fr; } #question-labels { position: static; max-height: none; } .editor-workbench { padding: 12px 12px 100px; } .editor-paper { padding: 16px; } }
