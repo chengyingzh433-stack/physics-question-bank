@@ -1,6 +1,6 @@
 import type { OcrCrop } from './ocr'
 
-export type IntakeRole = 'stem' | 'option' | 'answer' | 'analysis' | 'figure' | 'answerFigure'
+export type IntakeRole = 'question' | 'stem' | 'option' | 'answer' | 'analysis' | 'figure' | 'answerFigure'
 export type IntakeStatus = 'editing' | 'reviewing' | 'published' | 'archived'
 export interface IntakeSource {
   id: string; name: string; kind: 'image' | 'pdf' | 'docx'; originalPath: string; previewPath: string

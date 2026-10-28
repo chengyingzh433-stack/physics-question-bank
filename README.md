@@ -1,16 +1,18 @@
 # 教师题库管理系统
 
-面向教师个人积累与复用好题的桌面工具，当前 Mac 人工验收版：**1.1.0-beta.11**；Windows 已验证版本：**1.1.0-beta.3**。
+面向教师个人积累与复用好题的桌面工具，当前 Mac 人工验收版：**1.1.0-beta.12**；Windows 已验证版本：**1.1.0-beta.3**。
 
 ## 下载与使用
 
 从 [GitHub Releases](https://github.com/chengyingzh433-stack/physics-question-bank/releases) 下载对应平台的文件。Mac（Apple Silicon，M 系列）下载 `mac-arm64.dmg`，打开后将应用拖入“应用程序”；Windows 下载 beta.3 的 EXE 安装程序。日常使用无需命令行或 Node.js。beta.7 起可在软件内检查和安装后续版本，首次仍需安装 DMG；操作与 Doc2X Key 配置见 [更新使用说明](docs/superpowers/specs/2026-10-25-in-app-update-guide.md)。
 
-Mac 版尚无 Apple Developer ID 签名和公证，本版完成静态检查、构建，并按本次授权用真实 PDF 手工核对主要流程；完整功能验收由用户执行；下载后可能需要系统的开发者信任确认。Intel Mac 未验证，本轮不提供 Intel 安装包。
+Mac 版尚无 Apple Developer ID 签名和公证，本版完成静态检查与构建；beta.11 曾按授权用真实 PDF 手工核对主要流程，beta.12 的整题入口功能验收由用户执行；下载后可能需要系统的开发者信任确认。Intel Mac 未验证，本轮不提供 Intel 安装包。
 
 资料默认保存在 Windows 的 `%APPDATA%/physics-question-bank` 或 Mac 的 `~/Library/Application Support/physics-question-bank`；原 PDF 与题图的存储位置可在应用设置查看。仓库和安装程序不包含个人题库资料。
 
 ## 当前功能
+
+beta.12 补上明确的“整道题”选项及选区直接校对按钮，见 [整题入口说明](docs/superpowers/specs/2026-10-28-whole-question-intake-delivery.md)。
 
 beta.11 重构了录题、校对、题库和组卷界面。PDF 默认框选整题后直接校对，标签常驻正文右侧，题库筛选按需打开。见 [界面重构方案](docs/superpowers/plans/2026-10-28-frontend-workbench-redesign.md) 与 [操作及交付说明](docs/superpowers/specs/2026-10-28-frontend-workbench-delivery.md)。
 

@@ -48,11 +48,11 @@ function IntakeList() {
         if (!d.sources.length) { await window.api.archiveIntakeDraft(d.id, d.revision, true); refresh(); return }
       } else if (mode === 'text') {
         d = await window.api.saveIntakeDraft(d.id, d.revision, '手工录题',
-          [{ id: crypto.randomUUID(), role: 'stem', label: '', text: manualText.trim(), assetId: null }])
+          [{ id: crypto.randomUUID(), role: 'question', label: '', text: manualText.trim(), assetId: null }])
       } else if (mode === 'clipboard') {
         const result = await window.api.pasteIntakeClipboard(d.id); d = result.draft
         if (result.text !== null) d = await window.api.saveIntakeDraft(d.id, d.revision, d.title,
-          [{ id: crypto.randomUUID(), role: 'stem', label: '', text: result.text, assetId: null }])
+          [{ id: crypto.randomUUID(), role: 'question', label: '', text: result.text, assetId: null }])
       }
       if (mode !== 'manual') {
         const title = d.sources[0]?.name || d.components[0]?.text.trim().split(/\r?\n/)[0]
@@ -105,7 +105,7 @@ function IntakeWorkspace({ draftId }: { draftId: string }) {
   const [busy, setBusy] = useState(false), lock = useRef(false), [error, setError] = useState('')
   const [sourceId, setSourceId] = useState<string | null>(null)
   const [advanced, setAdvanced] = useState(false)
-  const [role, setRole] = useState<IntakeRole>('stem'), [label, setLabel] = useState('A'), [text, setText] = useState('')
+  const [role, setRole] = useState<IntakeRole>('question'), [label, setLabel] = useState('A'), [text, setText] = useState('')
   const [page, setPage] = useState<IntakePage | null>(null)
   const [selection, setSelection] = useState<{ crop: OcrCrop | null; scale: number; valid: boolean }>({ crop: null, scale: 1, valid: false })
   const usedSelection = useRef('')
@@ -204,7 +204,7 @@ function IntakeWorkspace({ draftId }: { draftId: string }) {
       if (!activeSource || !page || !selection.valid) throw new Error('请先添加原稿或输入题目文字')
       const d = draftRef.current!
       const asset = await window.api.addIntakeCrop(d.id, activeSource.id, page.page, selection.crop, await cropPage(page.url, selection.crop, selection.scale))
-      await saveComponents([{ id: crypto.randomUUID(), role: 'stem', label: '', text: '', assetId: asset.id }], [asset])
+      await saveComponents([{ id: crypto.randomUUID(), role: advanced ? role : 'question', label: advanced && role === 'option' ? label : '', text: '', assetId: asset.id }], [asset])
       usedSelection.current = selectionKey
     }
     return draftRef.current!
@@ -251,7 +251,9 @@ function IntakeWorkspace({ draftId }: { draftId: string }) {
         {activeSource ? <IntakePreview key={activeSource.id} source={activeSource} disabled={busy} readOnly={!editing} onPage={setPage}
           onSelection={(crop, scale, valid) => setSelection({ crop, scale, valid })} onText={(value) => { setAdvanced(true); setText((old) => old ? `${old}\n${value}` : value) }} />
           : <div className="intake-empty"><Text fw={500}>拖入原稿，或直接开始输入</Text><Text size="sm" c="dimmed" mt="sm">支持 PNG / JPEG · PDF · DOCX<br />原稿保留，可多次框选组成一道题。</Text></div>}
-        {activeSource && editing && advanced && <Button disabled={busy || !page || !selection.valid} variant="light" onClick={() => void run(async () => {
+        {activeSource && editing && (!advanced || role === 'question') && !draft.components.length && !text.trim() &&
+          <Button loading={busy} disabled={!page || !selection.valid} onClick={() => void run(continueReview)}>将{selection.crop ? '选区' : '当前整页'}作为整道题，继续校对</Button>}
+        {activeSource && editing && advanced && (role !== 'question' || draft.components.length > 0 || Boolean(text.trim())) && <Button disabled={busy || !page || !selection.valid} variant="light" onClick={() => void run(async () => {
           await persist()
           const asset = await window.api.addIntakeCrop(draftId, activeSource.id, page!.page, selection.crop, await cropPage(page!.url, selection.crop, selection.scale))
           await addAsset(asset); usedSelection.current = selectionKey
@@ -266,6 +268,7 @@ function IntakeWorkspace({ draftId }: { draftId: string }) {
         {editing && <>
           <Group align="end"><Select label="当前添加到" value={role} allowDeselect={false} disabled={busy} data={roleOptions} onChange={(v) => { if (v) setRole(v as IntakeRole) }} style={{ flex: 1 }} />
             {role === 'option' && <TextInput label="选项标记" value={label} maxLength={8} w={100} disabled={busy} onChange={(e) => setLabel(e.currentTarget.value)} />}</Group>
+          {role === 'question' && <Text size="xs" c="dimmed">包含题干、选项和配图的完整题目，直接作为一道题录入，无需拆开。图片中的文字不会自动转成可编辑文字。</Text>}
           {role === 'option' && <Text size="xs" c="dimmed">选区已含 A/B 等标记时，可清空选项标记，避免重复添加。</Text>}
           <Textarea label="输入或粘贴文字" description="继续校对或暂存时会自动加入当前部分。需要分段时点击“加入组题”；公式在校对页插入。" autosize minRows={3} maxRows={9} value={text} disabled={busy} maxLength={20000} onChange={(e) => setText(e.currentTarget.value)} />
           <Group gap="xs"><Button size="xs" disabled={busy || !text.trim()} onClick={() => void run(async () => {
@@ -277,7 +280,7 @@ function IntakeWorkspace({ draftId }: { draftId: string }) {
             <Button size="xs" variant="subtle" disabled={busy || !text} onClick={() => setText('')}>清空输入框</Button></Group>
           <Divider label="按以下顺序组题 · 题干与答案分别汇总" />
         </>}
-        {draft.components.length === 0 && <Text c="dimmed" size="sm" py="lg">先选择部分，再输入文字或从原稿框选。文字与图片可以交替排列。</Text>}
+        {draft.components.length === 0 && <Text c="dimmed" size="sm" py="lg">可以整题录入，也可以分别添加题干、选项、答案和配图。</Text>}
         {draft.components.map((c, index) => {
           const asset = draft.assets.find((a) => a.id === c.assetId), source = draft.sources.find((s) => s.id === asset?.sourceId)
           return <Paper key={c.id} withBorder p="sm" className="intake-component">
@@ -301,7 +304,7 @@ function IntakeWorkspace({ draftId }: { draftId: string }) {
         <Menu.Item onClick={() => void run(() => copy(false))}>沿用原稿，新建另一题</Menu.Item>
         {editing && <Menu.Item disabled={Boolean(text.trim()) || pendingSelection} onClick={() => void run(async () => { const d = await persist(); accept(await window.api.archiveIntakeDraft(draftId, d.revision, true)) })}>归档草稿（保留原稿）</Menu.Item>}
       </Menu.Dropdown></Menu>{editing && <Button variant="subtle" disabled={busy} onClick={() => void run(preview)}>预览</Button>}
-        {editing ? <Button rightSection={<IconArrowRight size={16} />} loading={busy} disabled={!draft.components.length && !text.trim() && (!page || !selection.valid)} onClick={() => void run(continueReview)}>继续校对</Button> : draft.status !== 'archived' && <Button component={Link} to={editLink(draft)}>进入校对</Button>}
+        {editing ? <Button rightSection={<IconArrowRight size={16} />} loading={busy} disabled={!draft.components.length && !text.trim() && (!page || !selection.valid)} onClick={() => void run(continueReview)}>{!draft.components.length && !text.trim() && (!advanced || role === 'question') ? '整题录入，继续校对' : '继续校对'}</Button> : draft.status !== 'archived' && <Button component={Link} to={editLink(draft)}>进入校对</Button>}
         {!editing && <Button variant="default" disabled={busy} onClick={() => void run(() => copy(false))}>沿用原稿录下一题</Button>}
       </Group>
     </Group></Paper>

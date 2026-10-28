@@ -14,7 +14,7 @@ import type { OcrCrop } from '../../shared/ocr'
 import { prepareDocxPreview } from './DocxPreview'
 
 const busy = new Set<string>()
-const roles = new Set(['stem', 'option', 'answer', 'analysis', 'figure', 'answerFigure'])
+const roles = new Set(['question', 'stem', 'option', 'answer', 'analysis', 'figure', 'answerFigure'])
 const now = () => new Date().toISOString()
 interface DraftRow { id: string; paperId: number; questionId: number; title: string; revision: number; status: IntakeDraft['status']; components: string; updatedAt: string }
 const selectDraft = `SELECT id, paper_id AS paperId, question_id AS questionId, title, revision, status, components_json AS components, updated_at AS updatedAt FROM intake_drafts`
@@ -183,7 +183,7 @@ const answerRole = (c: IntakeComponent) => ['answer', 'analysis', 'answerFigure'
 export async function prepareQuestion(id: string, revision: number, question: ArrayBuffer, answer: ArrayBuffer | null): Promise<IntakeDraft> {
   return exclusive(id, async () => {
     const draft = editable(id, revision), components = validComponents(draft, draft.components)
-    if (!components.some((c) => !answerRole(c))) throw new Error('请先添加题干、选项或题干配图')
+    if (!components.some((c) => !answerRole(c))) throw new Error('请先添加整道题，或添加题干、选项及配图')
     if (components.some(answerRole) !== Boolean(answer)) throw new Error('答案预览与组成部分不一致，请重新生成')
     const q = normalizeImage(bytes(question)), a = answer ? normalizeImage(bytes(answer)) : null
     await ensurePaperDir(draft.paperId)
