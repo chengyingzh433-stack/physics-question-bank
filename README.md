@@ -1,16 +1,18 @@
 # 教师题库管理系统
 
-面向教师个人积累与复用好题的桌面工具，当前 Mac 人工验收版：**1.1.0-beta.12**；Windows 已验证版本：**1.1.0-beta.3**。
+面向教师个人积累与复用好题的桌面工具，当前 Mac 人工验收版：**1.1.0-beta.13**；Windows 已验证版本：**1.1.0-beta.3**。
 
 ## 下载与使用
 
 从 [GitHub Releases](https://github.com/chengyingzh433-stack/physics-question-bank/releases) 下载对应平台的文件。Mac（Apple Silicon，M 系列）下载 `mac-arm64.dmg`，打开后将应用拖入“应用程序”；Windows 下载 beta.3 的 EXE 安装程序。日常使用无需命令行或 Node.js。beta.7 起可在软件内检查和安装后续版本，首次仍需安装 DMG；操作与 Doc2X Key 配置见 [更新使用说明](docs/superpowers/specs/2026-10-25-in-app-update-guide.md)。
 
-Mac 版尚无 Apple Developer ID 签名和公证，本版完成静态检查与构建；beta.11 曾按授权用真实 PDF 手工核对主要流程，beta.12 的整题入口功能验收由用户执行；下载后可能需要系统的开发者信任确认。Intel Mac 未验证，本轮不提供 Intel 安装包。
+Mac 版尚无 Apple Developer ID 签名和公证，本版完成静态检查与构建；beta.11 曾按授权用真实 PDF 手工核对主要流程，beta.13 的搜索与导出功能验收由用户执行；下载后可能需要系统的开发者信任确认。Intel Mac 未验证，本轮不提供 Intel 安装包。
 
 资料默认保存在 Windows 的 `%APPDATA%/physics-question-bank` 或 Mac 的 `~/Library/Application Support/physics-question-bank`；原 PDF 与题图的存储位置可在应用设置查看。仓库和安装程序不包含个人题库资料。
 
 ## 当前功能
+
+beta.13 增加已保存题干/答案搜索、匹配片段、统一内容来源及 PDF/PPT 编辑稿导出。清空答案独立保留为空，旧导出偏好可显式沿用；见 [第一阶段交付与自测说明](docs/superpowers/specs/2026-11-14-content-reuse-beta13-delivery.md)。
 
 beta.12 补上明确的“整道题”选项及选区直接校对按钮，见 [整题入口说明](docs/superpowers/specs/2026-10-28-whole-question-intake-delivery.md)。
 
@@ -26,7 +28,7 @@ beta.11 重构了录题、校对、题库和组卷界面。PDF 默认框选整�
 - 题干/答案对照编辑、可视公式、本地配图与原图裁取、图片缩放、保存及历史恢复。
 - Doc2X 单题云识别：题干或答案图片上传预览、独立候选校对、待处理事项、采用前恢复草稿与任务续查；默认关闭，逐次确认。
 - Word 组卷：原图与编辑内容混排、自定义题号、分组标题、页边距、题后留白和答案位置；公式以 Word 原生公式输出。
-- 原图 PDF / PPTX 导出继续保留。
+- PDF / PPTX 支持最新保存内容、原图或旧偏好，按固定版本排版并分页；输出的题目正文为图片，Word 保留可编辑文字和公式。
 - 软件更新：启动检查、正式版/测试版选择、更新说明、下载与校验、Mac 应用替换及旧版恢复副本；从顶部或设置进入。
 
 扫描 PDF 仍以题图保留；可手工录入，或自行配置 Doc2X API 后识别单张题图。识别按服务额度计费，结果需人工校对，不包含整卷批量 OCR 或可编辑表格。beta.8 新增 DOCX 预览与人工选区录题；旧 DOC 需先另存 DOCX 或 PDF。录入入口与边界见 [M21 使用说明](docs/superpowers/specs/2026-10-25-multi-source-intake-guide.md)。入口和自测步骤见 [M19 使用说明](docs/superpowers/specs/2026-10-25-doc2x-ocr-guide.md)；已有编辑及 Word 操作见 [M18 使用说明](docs/superpowers/specs/2026-10-24-editable-word-guide.md)。章节预设按公开教材目录核对，尚未与学科网页面逐项对照。
@@ -69,6 +71,9 @@ Windows beta.3 的 99 项测试、GUI 和 EXE 验证是历史基线。升级后�
 M19 已实现 Doc2X 单图 API 接入，默认关闭，用户使用自己的 Key 和额度；没有分发其识别引擎，也不声称整套 Doc2X 产品开源。M21 的 DOCX 本机预览复用 docx-preview，局部渲染复用 html-to-image；原稿不自动上传。编辑能力复用 Tiptap / MathLive，Word 导出复用 docx.js / mathml2omml，均在本机工作；选型与边界见 [M18 方案](docs/superpowers/plans/2026-10-24-editable-word-plan.md)。识别结果使用 unified/remark 解析，受限文档与原图分开保存在本机。MinerU、PaddleOCR、Pix2Text 仍是后续本地识别候选。第三方许可及 mathml2omml 对应源码随安装包提供，见 [组件说明](resources/third-party-licenses/README.txt)。
 
 ## 开发记录
+
+- [后续改进计划：内容检索与一致导出、连续录题、智能辅助（待实施）](docs/superpowers/plans/2026-11-14-product-improvement-roadmap.md)
+- [ZhiTi 源码对照报告](docs/superpowers/specs/2026-11-13-zhiti-source-comparison.md)
 
 - [M21 多来源录题方案](docs/superpowers/plans/2026-10-25-multi-source-intake-plan.md)
 - [M21 操作说明与用户自测](docs/superpowers/specs/2026-10-25-multi-source-intake-guide.md)

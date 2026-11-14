@@ -2,6 +2,7 @@ import type { DB } from '../StorageService'
 import type { SegmentDTO } from '../../../shared/types'
 import type { QuestionFilterCriteria } from '../questionFilter'
 import { buildQuestionQuery } from '../questionFilter'
+import { searchMatches } from './searchRepo'
 
 const QUESTION_ID_HIGH_WATER = 'internal:question_id_high_water'
 const EDITABLE_CONTENT_PROTECTED = '此题包含编辑内容、识别记录或恢复草稿，不能通过重新合并或取消合并删除。请保留当前题目；如需重新裁切，请重新导入原 PDF。'
@@ -95,7 +96,9 @@ export function listBankQuestions(
   criteria: QuestionFilterCriteria
 ): (QuestionRow & { paper_name: string })[] {
   const { sql, params } = buildQuestionQuery(criteria, `${QUESTION_COLUMNS}, p.name AS paper_name`, hasContentTable(db))
-  return db.prepare(sql).all(...params) as (QuestionRow & { paper_name: string })[]
+  const rows = db.prepare(sql).all(...params) as (QuestionRow & { paper_name: string })[]
+  return criteria.search?.trim() && hasContentTable(db)
+    ? rows.map((row) => ({ ...row, search_matches: searchMatches(db, row.id, criteria.search!.trim()) })) : rows
 }
 
 /** 题库筛选可选的年份/出处清单（distinct，按 effective 口径）。 */

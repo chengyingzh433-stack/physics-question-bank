@@ -16,6 +16,8 @@ import {
   type EditableDocument, type QuestionContentDTO, type WordExportOptions
 } from '../../shared/editable'
 import { wordMath } from './WordMath'
+import { selectContent, type ContentSource } from '../../shared/contentSelection'
+import { withStorageUse } from '../storage/activity'
 
 const MM_TO_TWIPS = 1440 / 25.4
 const MM_TO_PX = 96 / 25.4
@@ -43,7 +45,9 @@ export function normalizeWordOptions(input: unknown): WordExportOptions {
   }
   if (!['none', 'inline', 'append'].includes(value.answerMode as string)) throw new Error('Word 答案位置无效')
   if (typeof value.questionStartNewPage !== 'boolean') throw new Error('Word 分页设置无效')
+  if (value.contentSource !== undefined && !['latest', 'original', 'saved'].includes(value.contentSource as string)) throw new Error('内容来源无效')
   return {
+    contentSource: (value.contentSource ?? 'saved') as ContentSource,
     title: text('title', 200, '试卷标题') || '物理试卷',
     subtitle: text('subtitle', 500, '副标题'),
     answerMode: value.answerMode as WordExportOptions['answerMode'],
@@ -54,8 +58,8 @@ export function normalizeWordOptions(input: unknown): WordExportOptions {
   }
 }
 
-interface SourceImage { bytes: Buffer; name: string }
-interface SnapshotQuestion {
+export interface SourceImage { bytes: Buffer; name: string }
+export interface SnapshotQuestion {
   id: number
   number: string
   groupHeader: string | null
@@ -70,7 +74,7 @@ interface SnapshotQuestion {
  * conversion. Later edits, storage moves or answer replacement cannot create
  * a document that mixes old metadata with new/missing image bytes.
  */
-function readSnapshot(setId: number, includeAnswers: boolean): SnapshotQuestion[] {
+export function readSnapshot(setId: number, includeAnswers: boolean, source: ContentSource = 'latest'): SnapshotQuestion[] {
   if (!Number.isSafeInteger(setId) || setId <= 0) throw new Error('组卷篮编号无效')
   const db = getDb()
   return db.transaction(() => {
@@ -107,7 +111,8 @@ function readSnapshot(setId: number, includeAnswers: boolean): SnapshotQuestion[
         FROM questions q JOIN papers p ON p.id = q.paper_id WHERE q.id = ? AND (p.kind = 'paper' OR (p.kind = 'intake' AND p.status = 'done'))`).get(item.question_id) as
         { id: number; paper_id: number; image_path: string | null; answer_image_path: string | null } | undefined
       if (!question) throw new Error(`${label}已被删除或不再属于题库，请刷新组卷篮`)
-      const content = contentRepo.getQuestionContent(db, question.id)
+      const saved = contentRepo.getQuestionContent(db, question.id)
+      const content = saved ? { ...saved, questionMode: selectContent(saved, 'question', source), answerMode: selectContent(saved, 'answer', source) } : null
       const editableQuestion = content?.questionMode === 'editable'
       const editableAnswer = includeAnswers && content?.answerMode === 'editable'
       const assets = new Map<string, SourceImage>()
@@ -269,7 +274,7 @@ async function composeDocument(questions: SnapshotQuestion[], options: WordExpor
 }
 
 /** Atomic same-directory replacement; a failed write never truncates the destination. */
-async function writeDocxAtomic(filePath: string, data: Buffer): Promise<void> {
+export async function writeExportAtomic(filePath: string, data: Buffer): Promise<void> {
   const temporary = join(dirname(filePath), `.physics-word-${randomUUID()}.tmp`)
   try {
     const file = await open(temporary, 'wx', 0o600)
@@ -279,7 +284,11 @@ async function writeDocxAtomic(filePath: string, data: Buffer): Promise<void> {
 }
 
 /** The dialog grants the destination; cancellation performs no file writes. */
-export async function exportBasketDocx(setId: number, input: WordExportOptions): Promise<string | null> {
+export function exportBasketDocx(setId: number, input: WordExportOptions): Promise<string | null> {
+  return withStorageUse(() => exportBasketDocxCore(setId, input))
+}
+
+async function exportBasketDocxCore(setId: number, input: WordExportOptions): Promise<string | null> {
   const options = normalizeWordOptions(input)
   const safeTitle = [...options.title.replace(/[\\/:*?"<>|\r\n]/g, '_')].slice(0, 60).join('').replace(/[. ]+$/, '') || '物理试卷'
   const result = await dialog.showSaveDialog({
@@ -289,8 +298,8 @@ export async function exportBasketDocx(setId: number, input: WordExportOptions):
   })
   if (result.canceled || !result.filePath) return null
   const filePath = extname(result.filePath).toLowerCase() === '.docx' ? result.filePath : `${result.filePath}.docx`
-  const questions = readSnapshot(setId, options.answerMode !== 'none')
+  const questions = await withStorageUse(async () => readSnapshot(setId, options.answerMode !== 'none', options.contentSource))
   const buffer = await composeDocument(questions, options)
-  await writeDocxAtomic(filePath, buffer)
+  await writeExportAtomic(filePath, buffer)
   return filePath
 }

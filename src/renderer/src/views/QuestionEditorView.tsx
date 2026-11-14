@@ -18,6 +18,7 @@ import { useUnsavedNavigation } from '../components/useUnsavedNavigation'
 const errorMessage = ocrErrorMessage
 const contentInput = (value: QuestionContentInput): QuestionContentInput => ({ schemaVersion: 1,
   questionMode: value.questionMode, answerMode: value.answerMode, questionBody: normalizeEditableDocument(value.questionBody), answerBody: normalizeEditableDocument(value.answerBody),
+  ...(value.editedParts ? { editedParts: value.editedParts } : {}),
   ...(value.recognition ? { recognition: value.recognition } : {}) })
 
 
@@ -284,11 +285,11 @@ export default function QuestionEditorView() {
                 <Text size="sm" c="dimmed">当前内容仍是图片。需要修改图片中的文字时，请点击“图片转文字 / 识别”；也可以保留题图直接入库。</Text>}
               <Group justify="space-between"><Text fw={600}>{tab === 'question' ? '题干编辑稿' : '答案编辑稿'}</Text>
                 <Button variant="subtle" size="xs" disabled={busy} onClick={() => setPreview((value) => !value)}>{preview ? '继续编辑' : '预览编辑稿'}</Button></Group>
-              <details className="editor-export-options"><summary>Word 导出设置</summary><Select label="Word 导出使用" value={mode} allowDeselect={false} disabled={busy}
-                description={mode === 'original' ? '编辑稿可先保存为草稿，导出仍使用原图。' : '导出使用下方文字、公式和独立配图。'}
-                data={[{ value: 'original', label: original ? '原图' : '原图（当前暂无原图）' }, { value: 'editable', label: '可编辑内容', disabled: !hasEditableContent(body) }]}
+              <details className="editor-export-options"><summary>原有导出偏好</summary><Select label="选择沿用偏好时使用" value={mode} allowDeselect={false} disabled={busy}
+                description={mode === 'original' ? '组卷选择“沿用每题原有导出偏好”时使用原图；“最新保存内容”仍使用已保存编辑稿。' : '沿用偏好时使用下方编辑稿；清空答案后保存，将表示暂无答案。'}
+                data={[{ value: 'original', label: original ? '原图' : '原图（当前暂无原图）' }, { value: 'editable', label: '可编辑内容', disabled: tab === 'question' && !hasEditableContent(body) }]}
                 onChange={(value) => { if (value === 'original' || value === 'editable') setContent((prev) => ({ ...prev, [tab === 'question' ? 'questionMode' : 'answerMode']: value })) }} /></details>
-              {mode === 'editable' && !hasEditableContent(body) && <Alert color="orange">编辑稿已清空，请补充内容或改用原图后保存。</Alert>}
+              {mode === 'editable' && !hasEditableContent(body) && <Alert color="orange">{tab === 'answer' ? '保存后表示暂无答案；原答案图仍保留，可在原图模式查看。' : '题干编辑稿已清空，请补充内容后保存。'}</Alert>}
               <div style={{ display: preview ? 'none' : undefined }}><QuestionDocumentEditor key={`${questionId}-${editorVersion}-${tab}`}
                 questionId={questionId} initialDocument={body} assets={data.assets} sources={sources} disabled={saving || ocrProtecting || Boolean(recovery)}
                 onBusy={handleEditorBusy} onChange={(document) => {
@@ -297,7 +298,8 @@ export default function QuestionEditorView() {
                   const recognition = origin ? { ...content.recognition, [tab]: { jobId: origin.jobId, candidateRevision: origin.candidateRevision,
                     sourceFingerprint: origin.sourceFingerprint, reviewState: 'needs_review' as const } } : content.recognition
                   const next = { ...content, [tab === 'question' ? 'questionBody' : 'answerBody']: nextBody,
-                    [tab === 'question' ? 'questionMode' : 'answerMode']: hasEditableContent(nextBody) ? 'editable' as const : 'original' as const,
+                    editedParts: { ...content.editedParts, [tab]: true },
+                    [tab === 'question' ? 'questionMode' : 'answerMode']: 'editable' as const,
                     ...(recognition ? { recognition } : {}) }
                   backup(next); setContent(next)
                 }}

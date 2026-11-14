@@ -1,4 +1,5 @@
 import { ipcMain, dialog, BrowserWindow, app } from 'electron'
+import { initializeSearchStorage } from '../storage/repositories/searchRepo'
 import { join } from 'path'
 import { getDb } from '../storage/StorageService'
 import * as paperRepo from '../storage/repositories/paperRepo'
@@ -366,6 +367,7 @@ export function registerIpc(): void {
   ipcMain.handle('bank:list', (_e, criteria: QuestionFilterCriteria) => {
     return questionRepo.listBankQuestions(getDb(), criteria)
   })
+  ipcMain.handle('bank:rebuildSearch', () => initializeSearchStorage(getDb(), true))
   ipcMain.handle('bank:listYearSources', () => {
     return questionRepo.listYearSources(getDb())
   })
@@ -406,15 +408,15 @@ export function registerIpc(): void {
   // ---- export ----
   ipcMain.handle(
     'export:basket',
-    async (_e, setId: number, title: string, answerMode?: 'none' | 'append' | 'inline') => {
-      return exportService.exportBasketPdf(setId, title, answerMode ?? 'none')
+    async (_e, setId: number, title: string, answerMode?: 'none' | 'append' | 'inline', options?: import('../../shared/editable').WordExportOptions) => {
+      return exportService.exportBasketPdf(setId, title, answerMode ?? 'none', options)
     }
   )
 
   ipcMain.handle(
     'export:basketPptx',
-    async (_e, setId: number, title: string, answerMode?: 'none' | 'append' | 'inline') => {
-      return exportService.exportBasketPptx(setId, title, answerMode ?? 'none')
+    async (_e, setId: number, title: string, answerMode?: 'none' | 'append' | 'inline', options?: import('../../shared/editable').WordExportOptions) => {
+      return exportService.exportBasketPptx(setId, title, answerMode ?? 'none', options)
     }
   )
 

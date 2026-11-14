@@ -10,22 +10,14 @@ import {
   IconClipboardList, IconFileTypeDocx, IconEdit, IconEye
 } from '@tabler/icons-react'
 import type { PaperSetItemDTO } from '@shared/types'
-import { assetUrl, DEFAULT_WORD_OPTIONS } from '@shared/editable'
+import { DEFAULT_WORD_OPTIONS, hasEditableContent } from '@shared/editable'
 import type { EditableQuestionDTO, WordExportOptions } from '@shared/editable'
 import { EmptyState } from '../components/EmptyState'
 import { notifyBasketChanged } from '../components/useBasketCount'
-import { DocumentPreview } from '../components/editor/DocumentPreview'
+import { SavedQuestionBody } from '../components/bank/SavedQuestionBody'
+import { selectContent, CONTENT_SOURCE_OPTIONS, type ContentSource } from '@shared/contentSelection'
 import { useUnsavedNavigation } from '../components/useUnsavedNavigation'
 import './BasketView.css'
-
-function QuestionBody({ detail, answer = false }: { detail: EditableQuestionDTO; answer?: boolean }) {
-  const content = detail.content
-  const editable = (answer ? content?.answerMode : content?.questionMode) === 'editable'
-  const original = answer ? detail.question.answer_image_path : detail.question.image_path
-  if (editable && content) return <DocumentPreview document={answer ? content.answerBody : content.questionBody} assets={detail.assets} />
-  if (original) return <img className="basket-original-image" src={assetUrl(original)} alt={answer ? '原始答案图' : '原始题图'} />
-  return <Text size="sm" c="dimmed">{answer ? '暂无参考答案' : '缺少原题图，请回到试卷重新入库或编辑题目内容'}</Text>
-}
 
 export default function BasketView(): React.JSX.Element {
   const navigate = useNavigate()
@@ -106,15 +98,17 @@ export default function BasketView(): React.JSX.Element {
     if (setId == null) return
     await persistAll()
     const path = format === 'docx' ? await window.api.exportBasketDocx(setId, options)
-      : format === 'pdf' ? await window.api.exportBasketPdf(setId, options.title, options.answerMode)
-      : await window.api.exportBasketPptx(setId, options.title, options.answerMode)
+      : format === 'pdf' ? await window.api.exportBasketPdf(setId, options.title, options.answerMode, options)
+      : await window.api.exportBasketPptx(setId, options.title, options.answerMode, options)
     if (path) notifications.show({ title: '导出成功', message: path, color: 'green' })
   })
   const numberFor = (item: PaperSetItemDTO, index: number) => numbers[item.id]?.trim() || String(index + 1)
   const rowsDirty = items.some((it) => (headers[it.id] ?? '') !== (it.group_header ?? '') || (numbers[it.id] ?? '') !== (it.display_number ?? ''))
   const settingsDirty = JSON.stringify(options) !== savedOptions || rowsDirty
   useUnsavedNavigation(settingsDirty || busy)
-  const editableCount = items.filter((it) => details[it.question_id]?.content?.questionMode === 'editable').length
+  const source = options.contentSource ?? 'saved'
+  const isEdited = (detail: EditableQuestionDTO | undefined, answer = false) => selectContent(detail?.content, answer ? 'answer' : 'question', source) === 'editable'
+  const editableCount = items.filter((it) => isEdited(details[it.question_id])).length
 
   if (loading) return <Group justify="center" p="xl"><Loader size="sm" /><Text>正在读取组卷内容…</Text></Group>
   if (error && items.length === 0) return <Alert color="red" title="组卷篮加载失败">{error}<Button ml="sm" onClick={() => void reload()}>重试</Button></Alert>
@@ -137,8 +131,8 @@ export default function BasketView(): React.JSX.Element {
               <Stack gap={4}>
                 <Text fw={600}>第 {index + 1} 项 <Text span size="sm" c="dimmed">{q?.paper_name} · 原第 {q?.order_in_paper ?? '—'} 题</Text></Text>
                 <Group gap={6}>
-                  <Badge color={detail?.content?.questionMode === 'editable' ? 'teal' : 'gray'} variant="light">{detail?.content?.questionMode === 'editable' ? detail.content.questionBody.content.some((block) => block.type === 'paragraph' && block.content?.some((node) => node.type === 'text' || node.type === 'inlineMath')) ? '图文编辑稿' : '图片编辑稿' : '原图题干'}</Badge>
-                  <Badge color={detail?.content?.answerMode === 'editable' ? 'teal' : 'gray'} variant="outline">{detail?.content?.answerMode === 'editable' ? '答案编辑稿' : q?.answer_image_path ? '原图答案' : '暂无答案'}</Badge>
+                  <Badge color={isEdited(detail) ? 'teal' : 'gray'} variant="light">{isEdited(detail) ? detail!.content!.questionBody.content.some((block) => block.type === 'paragraph' && block.content?.some((node) => node.type === 'text' || node.type === 'inlineMath')) ? '图文编辑稿' : '图片编辑稿' : '原图题干'}</Badge>
+                  <Badge color={isEdited(detail, true) ? 'teal' : 'gray'} variant="outline">{isEdited(detail, true) ? hasEditableContent(detail!.content!.answerBody) ? '答案编辑稿' : '答案已清空' : q?.answer_image_path ? '原图答案' : '暂无答案'}</Badge>
                 </Group>
               </Stack>
               <Group gap={3} wrap="nowrap">
@@ -153,10 +147,10 @@ export default function BasketView(): React.JSX.Element {
             <details className="basket-row-options"><summary>分组与题号</summary><Group grow align="end" mb="sm" mt="sm">
               <TextInput label="本题之前的分组标题" placeholder="例如：一、选择题" size="xs" maxLength={200} value={headers[item.id] ?? ''}
                 onChange={(event) => setHeaders({ ...headers, [item.id]: event.currentTarget.value })} />
-              <TextInput label="题号（Word / PPT）" placeholder={`自动：${index + 1}`} size="xs" maxLength={30} value={numbers[item.id] ?? ''}
+              <TextInput label="题号（三种格式通用）" placeholder={`自动：${index + 1}`} size="xs" maxLength={30} value={numbers[item.id] ?? ''}
                 onChange={(event) => setNumbers({ ...numbers, [item.id]: event.currentTarget.value })} />
             </Group></details>
-            <div className="basket-question-thumbnail">{detail && <QuestionBody detail={detail} />}</div>
+            <div className="basket-question-thumbnail">{detail && <SavedQuestionBody detail={detail} source={source} />}</div>
             <Button mt="sm" variant="light" size="xs" leftSection={<IconEdit size={14} />} onClick={() => void openEditor(item.question_id)}>编辑题目与答案</Button>
           </Paper>
         })}
@@ -164,6 +158,10 @@ export default function BasketView(): React.JSX.Element {
       <Paper withBorder radius="md" p="md" className="basket-settings">
         <Stack gap="sm">
           <Text fw={700}>排版与导出</Text>
+          <Select label="内容来源（三种格式通用）" value={source} data={CONTENT_SOURCE_OPTIONS} allowDeselect={false}
+            onChange={(value) => { if (value) setOptions({ ...options, contentSource: value as ContentSource }) }} />
+          {source === 'saved' && <Alert color="blue">正在沿用每道题原有的导出偏好，可能与最新题卡不同。需要使用最新编辑稿时，请选择“最新保存内容”。</Alert>}
+          <Text size="xs" c="dimmed">题干与答案分别选择内容；最新内容模式下，已清空的答案保持为空。原图始终保留。</Text>
           <TextInput label="试卷标题" maxLength={200} value={options.title} onChange={(event) => setOptions({ ...options, title: event.currentTarget.value })} />
           <TextInput label="副标题 / 考试信息" placeholder="姓名：____  班级：____" maxLength={500} value={options.subtitle} onChange={(event) => setOptions({ ...options, subtitle: event.currentTarget.value })} />
           <Select label="参考答案" value={options.answerMode} allowDeselect={false} onChange={(value) => setOptions({ ...options, answerMode: value as WordExportOptions['answerMode'] })}
@@ -182,20 +180,20 @@ export default function BasketView(): React.JSX.Element {
             await persistAll(); if (setId != null) await loadItems(setId)
             notifications.show({ message: '排版设置已保存', color: 'green' })
           })}>{settingsDirty ? '保存排版与题号设置' : '排版设置已保存'}</Button>
-          <Button variant="light" leftSection={<IconEye size={16} />} onClick={() => run(async () => { await persistAll(); setPreview(true) })}>预览试卷内容</Button>
+          <Button variant="light" leftSection={<IconEye size={16} />} onClick={() => run(async () => { await persistAll(); if (setId != null) await loadItems(setId); setPreview(true) })}>预览试卷内容</Button>
           <Button leftSection={<IconFileTypeDocx size={18} />} onClick={() => void exportFile('docx')}>导出 Word</Button>
           <Text size="xs" c="dimmed">Word 使用已保存的编辑稿或原图。图片仍是图片，只有已输入或识别并校对的文字才能逐字修改。</Text>
-          <Divider label="原图导出" />
+          <Divider label="PDF / PPT" />
           <Group grow>
-            <Button variant="default" size="xs" leftSection={<IconFileExport size={14} />} onClick={() => void exportFile('pdf')}>原图 PDF</Button>
-            <Button variant="default" size="xs" leftSection={<IconFileTypePpt size={14} />} onClick={() => void exportFile('pptx')}>原图 PPT</Button>
+            <Button variant="default" size="xs" leftSection={<IconFileExport size={14} />} onClick={() => void exportFile('pdf')}>导出 PDF</Button>
+            <Button variant="default" size="xs" leftSection={<IconFileTypePpt size={14} />} onClick={() => void exportFile('pptx')}>导出 PPT</Button>
           </Group>
-          <Text size="xs" c="dimmed">PDF / PPT 使用原始题图和原始答案图。PDF 按顺序编号，PPT 沿用自定义题号；上方字号、边距与逐题新页用于 Word。</Text>
+          <Text size="xs" c="dimmed">PDF / PPT 按当前内容来源排版，正文以图片输出。长题会分为续页；PPT 每题另起一页，字号与边距影响排版。</Text>
         </Stack>
       </Paper>
     </div>
     <Modal opened={preview} onClose={() => setPreview(false)} title="试卷内容预览" size="min(1000px, 96vw)">
-      <Text size="sm" c="dimmed" mb="md">按 A4 内容宽度显示题序、图文和答案位置。实际换行、分页以 Word / WPS 为准。</Text>
+      <Text size="sm" c="dimmed" mb="md">预览当前选择的已保存内容、题序和答案位置；实际分页由各格式决定。导出时固定保存版本，未保存修改不包含在内。</Text>
       <div className="basket-preview-scroll">
         <article className="basket-paper-preview" style={{ padding: `${options.marginMm}mm`, fontSize: `${options.fontSize}pt` }}>
           <h1>{options.title || '物理试卷'}</h1>
@@ -203,12 +201,12 @@ export default function BasketView(): React.JSX.Element {
           {items.map((item, index) => <section key={item.id} className={options.questionStartNewPage && index > 0 ? 'basket-preview-new-page' : undefined} style={{ marginBottom: `${options.questionSpacing}pt` }}>
             {headers[item.id]?.trim() && <h2>{headers[item.id].trim()}</h2>}
             <p className="basket-preview-number">{numberFor(item, index)}.</p>
-            {details[item.question_id] && <QuestionBody detail={details[item.question_id]} />}
-            {options.answerMode === 'inline' && <div className="basket-preview-answer"><p>参考答案</p><QuestionBody detail={details[item.question_id]} answer /></div>}
+            {details[item.question_id] && <SavedQuestionBody detail={details[item.question_id]} source={source} />}
+            {options.answerMode === 'inline' && <div className="basket-preview-answer"><p>参考答案</p><SavedQuestionBody detail={details[item.question_id]} source={source} answer /></div>}
           </section>)}
           {options.answerMode === 'append' && <section className="basket-preview-new-page"><h2>参考答案</h2>
             {items.map((item, index) => <div key={item.id} style={{ marginBottom: `${options.questionSpacing}pt` }}>
-              <p className="basket-preview-number">{numberFor(item, index)}.</p><QuestionBody detail={details[item.question_id]} answer />
+              <p className="basket-preview-number">{numberFor(item, index)}.</p><SavedQuestionBody detail={details[item.question_id]} source={source} answer />
             </div>)}
           </section>}
         </article>

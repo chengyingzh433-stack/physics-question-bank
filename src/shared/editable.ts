@@ -28,6 +28,8 @@ export interface QuestionContentInput {
   answerMode: ContentMode
   questionBody: EditableDocument
   answerBody: EditableDocument
+  /** Whether a part has an intentional saved edit, independently of export preferences. */
+  editedParts?: Partial<Record<'question' | 'answer', boolean>>
   recognition?: { question?: ContentRecognition; answer?: ContentRecognition }
 }
 export interface QuestionContentDTO extends QuestionContentInput {
@@ -78,6 +80,7 @@ export interface SaveQuestionEditsInput {
   publish?: { draftId: string; confirmed: boolean }
 }
 export interface WordExportOptions {
+  contentSource?: import('./contentSelection').ContentSource
   title: string
   subtitle: string
   answerMode: 'none' | 'append' | 'inline'
@@ -87,6 +90,7 @@ export interface WordExportOptions {
   questionStartNewPage: boolean
 }
 export const DEFAULT_WORD_OPTIONS: WordExportOptions = {
+  contentSource: 'latest',
   title: '物理试卷', subtitle: '', answerMode: 'none', fontSize: 12,
   marginMm: 20, questionSpacing: 12, questionStartNewPage: false
 }

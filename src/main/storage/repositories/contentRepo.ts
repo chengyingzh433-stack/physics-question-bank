@@ -7,6 +7,7 @@ import type {
 import { hasEditableContent } from '../../../shared/editable'
 import { initializeQuestionIdSequence } from './questionRepo'
 import { getQuestionMetadata } from './questionMetadataRepo'
+import { initializeSearchStorage, updateSearchContent } from './searchRepo'
 
 const MAX_DOCUMENT_BYTES = 2 * 1024 * 1024
 const MAX_BLOCKS = 2000
@@ -41,6 +42,7 @@ export function initializeContentStorage(db: DB): void {
     );
     CREATE INDEX IF NOT EXISTS idx_question_assets_question ON question_assets(question_id);
   `)
+  initializeSearchStorage(db)
 }
 
 function positiveInteger(value: unknown, label: string): asserts value is number {
@@ -220,13 +222,20 @@ export function validateQuestionContent(
     questionBody: document(value.questionBody, '题干'),
     answerBody: document(value.answerBody, '答案')
   }
+  const established = value.editedParts === undefined ? {} : object(value.editedParts, '编辑状态')
+  for (const part of ['question', 'answer'] as const) {
+    if (established[part] !== undefined && typeof established[part] !== 'boolean') throw new Error('编辑状态无效')
+  }
+  result.editedParts = {
+    question: established.question === true || result.questionMode === 'editable' || hasEditableContent(result.questionBody),
+    answer: established.answer === true || result.answerMode === 'editable' || hasEditableContent(result.answerBody)
+  }
   const recognition = validateRecognition(db, questionId, value.recognition)
   if (recognition) result.recognition = recognition
   if (textLength > MAX_TEXT_LENGTH || Buffer.byteLength(JSON.stringify(result), 'utf8') > MAX_DOCUMENT_BYTES) {
     throw new Error('题目内容过长，请精简后保存')
   }
   if (!options.allowIncomplete && result.questionMode === 'editable' && !hasEditableContent(result.questionBody)) throw new Error('题干没有可编辑内容，请输入内容或选择使用原图')
-  if (!options.allowIncomplete && result.answerMode === 'editable' && !hasEditableContent(result.answerBody)) throw new Error('答案没有可编辑内容，请输入内容或选择使用原图')
   return result
 }
 
@@ -274,6 +283,7 @@ export function saveQuestionContent(
     db.prepare(`INSERT INTO question_contents (question_id, revision, content_json, updated_at) VALUES (?, ?, ?, ?)
       ON CONFLICT(question_id) DO UPDATE SET revision = excluded.revision, content_json = excluded.content_json, updated_at = excluded.updated_at`)
       .run(questionId, revision, json, updatedAt)
+    updateSearchContent(db, questionId, revision, content)
     return { ...content, questionId, revision, updatedAt }
   })()
 }

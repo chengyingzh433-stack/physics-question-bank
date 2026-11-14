@@ -192,6 +192,7 @@ export interface Api extends EditableApi, OcrApi, UpdateApi, IntakeApi {
   batchQuestionKnowledgePoints(questionIds: number[]): Promise<Map<number, number[]>>
   // bank
   listBankQuestions(criteria: QuestionFilterCriteria): Promise<BankQuestionDTO[]>
+  rebuildQuestionSearch(): Promise<{ indexed: number; skipped: number }>
   listQuestionFolders(): Promise<QuestionFolderDTO[]>
   createQuestionFolder(name: string): Promise<number>
   renameQuestionFolder(id: number, name: string): Promise<void>
@@ -217,9 +218,9 @@ export interface Api extends EditableApi, OcrApi, UpdateApi, IntakeApi {
     }
   ): Promise<void>
   /** M14: answerMode 控制答案包含方式（'none'=不含/默认，'append'=末尾参考答案区，'inline'=每题后紧跟）。 */
-  exportBasketPdf(setId: number, title: string, answerMode?: 'none' | 'append' | 'inline'): Promise<string | null>
+  exportBasketPdf(setId: number, title: string, answerMode?: 'none' | 'append' | 'inline', options?: import('./editable').WordExportOptions): Promise<string | null>
   /** M16: 导出组卷篮为 PowerPoint（.pptx），每题一页。 */
-  exportBasketPptx(setId: number, title: string, answerMode?: 'none' | 'append' | 'inline'): Promise<string | null>
+  exportBasketPptx(setId: number, title: string, answerMode?: 'none' | 'append' | 'inline', options?: import('./editable').WordExportOptions): Promise<string | null>
 
   /** 备份数据库到用户选定路径（M12-2）。返回保存路径，取消返回 null。 */
   backupDatabase(): Promise<string | null>
@@ -282,6 +283,7 @@ export interface QuestionFolderDTO {
 }
 
 export interface BankQuestionDTO {
+  search_matches?: { part: 'question' | 'answer' | 'metadata'; snippet: string }[]
   id: number
   paper_id: number
   order_in_paper: number | null

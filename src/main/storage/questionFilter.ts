@@ -57,20 +57,13 @@ export function buildQuestionFilter(c: QuestionFilterCriteria, includeEditableAn
   if (c.unfiled) {
     conditions.push('NOT EXISTS (SELECT 1 FROM question_folder_items fi WHERE fi.question_id = q.id)')
   }
-  const hasAnswer = includeEditableAnswers ? `(NULLIF(q.answer_image_path, '') IS NOT NULL OR EXISTS (
-    SELECT 1 FROM question_contents saved,
-      json_each(CASE WHEN json_valid(saved.content_json) THEN saved.content_json ELSE '{}' END, '$.answerBody.content') block
-    WHERE saved.question_id = q.id AND (
-      json_extract(block.value, '$.type') = 'image' OR EXISTS (
-        SELECT 1 FROM json_each(block.value, '$.content') node
-        WHERE (json_extract(node.value, '$.type') = 'text' AND length(trim(json_extract(node.value, '$.text'), ' ' || char(9,10,13))) > 0)
-          OR (json_extract(node.value, '$.type') = 'inlineMath' AND length(trim(json_extract(node.value, '$.attrs.latex'), ' ' || char(9,10,13))) > 0)
-      )
-    )
-  ))` : "(NULLIF(q.answer_image_path, '') IS NOT NULL)"
+  const hasAnswer = includeEditableAnswers ? `(CASE WHEN EXISTS (
+    SELECT 1 FROM question_search s WHERE s.question_id=q.id AND s.answer_edited=1
+  ) THEN EXISTS (SELECT 1 FROM question_search s WHERE s.question_id=q.id AND s.answer_present=1)
+    ELSE NULLIF(q.answer_image_path, '') IS NOT NULL END)` : "(NULLIF(q.answer_image_path, '') IS NOT NULL)"
   if (c.answer_status === 'with') conditions.push(hasAnswer)
   if (c.answer_status === 'without') conditions.push(`NOT ${hasAnswer}`)
-  const search = c.search?.trim()
+  const search = c.search?.normalize('NFKC').replace(/\s+/g, ' ').trim()
   if (search) {
     const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`
     conditions.push(`(p.name LIKE ? ESCAPE '\\'
@@ -78,8 +71,10 @@ export function buildQuestionFilter(c: QuestionFilterCriteria, includeEditableAn
       OR EXISTS (SELECT 1 FROM question_types t WHERE t.id = q.type_id AND t.name LIKE ? ESCAPE '\\')
       OR EXISTS (SELECT 1 FROM chapters ch WHERE ch.id = q.chapter_id AND ch.name LIKE ? ESCAPE '\\')
       OR EXISTS (SELECT 1 FROM question_knowledge_points sk JOIN knowledge_points k ON k.id = sk.kp_id
-        WHERE sk.question_id = q.id AND k.name LIKE ? ESCAPE '\\'))`)
+        WHERE sk.question_id = q.id AND k.name LIKE ? ESCAPE '\\')
+      ${includeEditableAnswers ? "OR EXISTS (SELECT 1 FROM question_search s WHERE s.question_id=q.id AND (s.question_text LIKE ? ESCAPE '\\' OR s.answer_text LIKE ? ESCAPE '\\'))" : ''})`)
     params.push(pattern, pattern, pattern, pattern, pattern)
+    if (includeEditableAnswers) params.push(pattern, pattern)
   }
 
   return {

@@ -200,6 +200,11 @@ function BankView(): React.JSX.Element {
   return <div className="bank-workspace">
     <Drawer opened={filtersOpen} onClose={() => setFiltersOpen(false)} title="分类与筛选" size={300} closeButtonProps={{ 'aria-label': '关闭筛选' }}>
       {filterPanel}<Button fullWidth mt="md" onClick={() => setFiltersOpen(false)}>查看结果</Button>
+      <Divider my="md" /><Button variant="subtle" size="xs" disabled={busy} onClick={() => runWrite(async () => {
+        const result = await window.api.rebuildQuestionSearch()
+        setRevision((value) => value + 1)
+        notifications.show({ title: '搜索文字已重建', message: `已更新 ${result.indexed} 份编辑记录。${result.skipped ? `${result.skipped} 份记录无法读取，原件未改动，请检查对应题目。` : '原题图和编辑内容均未改动。'}`, color: result.skipped ? 'orange' : 'green' })
+      })}>重建本机搜索文字</Button>
     </Drawer>
     <div className="bank-content">
       <Group justify="space-between" wrap="wrap">
@@ -210,11 +215,11 @@ function BankView(): React.JSX.Element {
       </Group>
       <Group gap="xs" wrap="nowrap">
         <Button variant="default" leftSection={<IconFilter size={16} />} onClick={() => setFiltersOpen(true)}>分类 / 筛选{activeCount ? ` (${activeCount})` : ''}</Button>
-        <TextInput style={{ flex: 1 }} aria-label="搜索资料和标签" placeholder="搜索试卷名、出处、题型、章节、知识点"
+        <TextInput style={{ flex: 1 }} aria-label="搜索正文、答案和标签" placeholder="搜索题干、答案、名称、来源或标签"
           leftSection={<IconSearch size={16} />} value={search} disabled={busy} onChange={(e) => changeSearch(e.currentTarget.value)} />
         {activeCount > 0 && <Button variant="subtle" size="xs" disabled={busy} onClick={clearFilters}>清空条件</Button>}
       </Group>
-      <Text size="xs" c="dimmed">搜索资料与标签，暂不搜索题图正文。翻页保留勾选，切换筛选会清空勾选。</Text>
+      <Text size="xs" c="dimmed">搜索已保存的题干、答案和资料标签；纯图片中的字需先输入或识别。翻页保留勾选。</Text>
       {metaError && <Alert color="red" title="无法读取分类"><Text size="sm">{metaError}</Text><Button size="xs" onClick={reloadMeta}>重试</Button></Alert>}
       <Paper withBorder p="xs">
         <Group justify="space-between" gap="xs">
@@ -260,6 +265,9 @@ function BankView(): React.JSX.Element {
                 {detail ? <SavedQuestionBody detail={detail} /> : cardErrors[q.id] ? <Text size="xs" c="red">最新题卡读取失败，点击查看详情</Text> : <Loader size="sm" />}
               </button>
               <Text size="sm" fw={500} mt="xs" lineClamp={1} title={q.paper_name}>{q.paper_name}</Text>
+              {q.search_matches?.map((match) => <Text key={match.part} size="xs" mt={4} c="teal" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                {match.part === 'question' ? '题干' : match.part === 'answer' ? '答案' : '资料 / 标签'}：{match.snippet}
+              </Text>)}
               <Text size="xs" c="dimmed">第 {q.order_in_paper ?? '—'} 题 · {labelFor(types, meta ? meta.typeId : q.type_id) || '未标题型'}</Text>
               <Text size="xs" c="dimmed" lineClamp={1} mih={18}>{[q.effective_year, q.effective_source].filter(Boolean).join(' · ')}</Text>
               {labels.length > 0 && <Group gap={4} mt="xs">{labels.slice(0, 3).map((label, i) => <Badge key={i} size="xs" variant="outline" title={label}>{label}</Badge>)}
