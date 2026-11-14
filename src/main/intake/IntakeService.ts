@@ -8,8 +8,10 @@ import { inspectImage } from '../files/ContentAssetService'
 import { withStorageUse } from '../storage/activity'
 import { createQuestionWithSegments } from '../storage/repositories/questionRepo'
 import { getQuestionContent, insertQuestionAsset, saveQuestionContent } from '../storage/repositories/contentRepo'
-import { newQuestionContent, type EditableBlock } from '../../shared/editable'
-import type { IntakeAsset, IntakeComponent, IntakeDraft, IntakeSource, IntakeSummary } from '../../shared/intake'
+import { emptyQuestionMetadata, newQuestionContent, type EditableBlock } from '../../shared/editable'
+import { emptyIntakeContext, defaultIntakeInheritance } from '../../shared/intake'
+import { getQuestionMetadata, saveQuestionMetadata } from '../storage/repositories/questionMetadataRepo'
+import type { IntakeContext, IntakeInheritance, IntakeAsset, IntakeComponent, IntakeDraft, IntakeSource, IntakeSummary } from '../../shared/intake'
 import type { OcrCrop } from '../../shared/ocr'
 import { prepareDocxPreview } from './DocxPreview'
 
@@ -33,7 +35,12 @@ export function initializeIntakeStorage(db: DB): void {
     CREATE TABLE IF NOT EXISTS intake_assets (
     id TEXT PRIMARY KEY, draft_id TEXT NOT NULL REFERENCES intake_drafts(id) ON DELETE CASCADE,
     path TEXT NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL,
-    source_id TEXT REFERENCES intake_sources(id), page INTEGER, crop_json TEXT);`)
+    source_id TEXT REFERENCES intake_sources(id), page INTEGER, crop_json TEXT);
+    CREATE TABLE IF NOT EXISTS intake_context (
+      draft_id TEXT PRIMARY KEY REFERENCES intake_drafts(id) ON DELETE CASCADE, context_json TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS intake_next (
+      previous_id TEXT PRIMARY KEY REFERENCES intake_drafts(id) ON DELETE CASCADE,
+      next_id TEXT NOT NULL UNIQUE REFERENCES intake_drafts(id) ON DELETE CASCADE, inherited_json TEXT NOT NULL);`)
 }
 export function getDraft(id: string): IntakeDraft {
   const db = getDb(), row = db.prepare(`${selectDraft} WHERE id=?`).get(id) as DraftRow | undefined
@@ -42,7 +49,10 @@ export function getDraft(id: string): IntakeDraft {
     FROM intake_sources s JOIN intake_draft_sources ds ON ds.source_id=s.id WHERE ds.draft_id=? ORDER BY s.created_at,s.id`).all(id) as IntakeSource[]
   const assets = (db.prepare(`SELECT id,path,width,height,source_id AS sourceId,page,crop_json AS crop FROM intake_assets WHERE draft_id=?`).all(id) as (Omit<IntakeAsset, 'crop'> & { crop: string | null })[])
     .map((a) => ({ ...a, crop: a.crop ? JSON.parse(a.crop) as OcrCrop : null }))
-  return { ...row, components: JSON.parse(row.components), sources, assets }
+  const state = db.prepare('SELECT context_json FROM intake_context WHERE draft_id=?').get(id) as { context_json: string } | undefined
+  const prior = db.prepare('SELECT inherited_json FROM intake_next WHERE next_id=?').get(id) as { inherited_json: string } | undefined
+  return { ...row, components: JSON.parse(row.components), sources, assets,
+    context: state ? JSON.parse(state.context_json) : emptyIntakeContext(), inherited: prior ? JSON.parse(prior.inherited_json) : null }
 }
 export function draftForQuestion(questionId: number): IntakeDraft | null {
   const row = getDb().prepare('SELECT id FROM intake_drafts WHERE question_id=?').get(questionId) as { id: string } | undefined
@@ -82,13 +92,13 @@ function validComponents(draft: IntakeDraft, input: IntakeComponent[]): IntakeCo
   return input.map((c) => {
     if (!c || typeof c.id !== 'string' || !/^[a-f0-9-]{36}$/.test(c.id) || ids.has(c.id) || !roles.has(c.role) ||
       typeof c.label !== 'string' || c.label.length > 8 || typeof c.text !== 'string' || c.text.length > 20000 ||
-      /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(c.text) || (c.assetId !== null && !assets.has(c.assetId))) throw new Error('组成部分格式无效或图片不属于此稿')
+      /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(c.text) || (c.assetId !== null && !assets.has(c.assetId)) || (c.textSourceAssetId !== undefined && (!assets.has(c.textSourceAssetId) || c.assetId !== null))) throw new Error('组成部分格式无效或图片不属于此稿')
     length += c.text.length
     if (length > 80000) throw new Error('单题文字超过 8 万字，请拆分题目')
     if (!c.text.trim() && !c.assetId) throw new Error('请补充空白部分或将其删除')
     if (c.role === 'option' && !c.label.trim() && !c.assetId) throw new Error('请填写选项标记，例如 A')
     ids.add(c.id)
-    return { id: c.id, role: c.role, label: c.label.trim(), text: c.text, assetId: c.assetId }
+    return { id: c.id, role: c.role, label: c.label.trim(), text: c.text, assetId: c.assetId, ...(c.textSourceAssetId ? { textSourceAssetId: c.textSourceAssetId } : {}) }
   })
 }
 export function saveDraft(id: string, revision: number, title: string, input: IntakeComponent[]): IntakeDraft {
@@ -111,15 +121,16 @@ export async function createDraft(copyFrom?: string, includeComponents = false):
       const questionId = createQuestionWithSegments(db, paperId, [], 1)
       db.prepare('INSERT INTO intake_drafts (id,paper_id,question_id,title,updated_at) VALUES (?,?,?,?,?)').run(id, paperId, questionId, title, now())
       for (const s of source?.sources ?? []) db.prepare('INSERT INTO intake_draft_sources VALUES (?,?)').run(id, s.id)
+      if (source) saveContext(id, source.context)
     })()
     if (source && includeComponents) {
       const next = getDraft(id), remap = new Map<string, string>()
-      for (const assetId of new Set(source.components.flatMap((c) => c.assetId ? [c.assetId] : []))) {
+      for (const assetId of new Set(source.components.flatMap((c) => [c.assetId, c.textSourceAssetId].filter((id): id is string => Boolean(id))))) {
         const asset = source.assets.find((a) => a.id === assetId)!
         const copy = await writeAsset(next, asset.sourceId, asset.page, asset.crop, await readFile(join(getProjectsRoot(), asset.path)))
         remap.set(assetId, copy.id)
       }
-      return saveDraft(id, next.revision, next.title, source.components.map((c) => ({ ...c, id: randomUUID(), assetId: c.assetId ? remap.get(c.assetId)! : null })))
+      return saveDraft(id, next.revision, next.title, source.components.map((c) => ({ ...c, id: randomUUID(), assetId: c.assetId ? remap.get(c.assetId)! : null, ...(c.textSourceAssetId ? { textSourceAssetId: remap.get(c.textSourceAssetId)! } : {}) })))
     }
     return getDraft(id)
   })
@@ -198,7 +209,7 @@ export async function prepareQuestion(id: string, revision: number, question: Ar
       const db = getDb()
       db.prepare('UPDATE questions SET image_path=?,width_px=?,height_px=?,answer_image_path=?,answer_width_px=?,answer_height_px=?,updated_at=? WHERE id=?')
         .run(`projects/${draft.paperId}/images/${qName}`, q.width, q.height, a ? `projects/${draft.paperId}/images/${aName}` : null, a?.width ?? null, a?.height ?? null, now(), draft.questionId)
-      const used = new Set(components.flatMap((c) => c.assetId ? [c.assetId] : []))
+      const used = new Set(components.flatMap((c) => [c.assetId, c.textSourceAssetId].filter((id): id is string => Boolean(id))))
       for (const asset of draft.assets.filter((a) => used.has(a.id))) insertQuestionAsset(db, { id: asset.id, questionId: draft.questionId, path: asset.path, widthPx: asset.width, heightPx: asset.height, name: '录题原稿选区.png' })
       const body = (isAnswer: boolean): EditableBlock[] => components.filter((c) => answerRole(c) === isAnswer).flatMap((c) => {
         const result: EditableBlock[] = []
@@ -240,4 +251,64 @@ export function revealSource(id: string, sourceId: string): void {
   const source = getDraft(id).sources.find((s) => s.id === sourceId)
   if (!source) throw new Error('原稿不存在')
   shell.showItemInFolder(join(getProjectsRoot(), source.originalPath))
+}
+
+/** View writes intentionally do not change the content revision. */
+export function saveContext(id: string, input: IntakeContext): void {
+  const draft = getDraft(id), sourceIds = new Set(draft.sources.map((s) => s.id))
+  if (!input || (input.activeSourceId !== null && !sourceIds.has(input.activeSourceId)) || !input.views || typeof input.views !== 'object') throw new Error('原稿位置无效')
+  const context = emptyIntakeContext(); context.activeSourceId = input.activeSourceId
+  context.inherit = validateInheritance(input.inherit)
+  for (const [source, view] of Object.entries(input.views)) {
+    if (!sourceIds.has(source) || !view || !Number.isSafeInteger(view.page) || view.page < 1 || view.page > 100000 ||
+      ![view.zoom, view.left, view.top].every(Number.isFinite) || view.zoom < 0.5 || view.zoom > 3 || view.left < 0 || view.left > 1 || view.top < 0 || view.top > 1) throw new Error('原稿页码或缩放无效')
+    context.views[source] = { page: view.page, zoom: view.zoom, left: view.left, top: view.top }
+  }
+  getDb().prepare('INSERT INTO intake_context VALUES (?,?) ON CONFLICT(draft_id) DO UPDATE SET context_json=excluded.context_json').run(id, JSON.stringify(context))
+}
+function validateInheritance(input: IntakeInheritance): IntakeInheritance {
+  const result = defaultIntakeInheritance()
+  for (const key of Object.keys(result) as (keyof IntakeInheritance)[]) {
+    if (!input || typeof input[key] !== 'boolean') throw new Error('请选择下一题沿用的标签')
+    result[key] = input[key]
+  }
+  return result
+}
+/** One successor per published draft, including retries after a lost IPC response. */
+export function nextDraft(id: string, inheritance: IntakeInheritance): IntakeDraft {
+  const db = getDb()
+  return db.transaction(() => {
+    const source = getDraft(id)
+    if (source.status !== 'published') throw new Error('本题尚未保存入库，请先完成保存')
+    const existing = db.prepare('SELECT next_id FROM intake_next WHERE previous_id=?').get(id) as { next_id: string } | undefined
+    if (existing) return getDraft(existing.next_id)
+    const inherit = validateInheritance(inheritance), context = { ...source.context, inherit }
+    saveContext(id, context)
+    const sourceName = source.sources.find((s) => s.id === source.context.activeSourceId)?.name ?? source.sources[0]?.name ?? '手工录题'
+    const nextId = randomUUID(), title = `${sourceName.slice(0, 96)} · 第 ${listSession(id).length + 1} 题`
+    const paperId = Number(db.prepare("INSERT INTO papers (name,kind,status,created_at,updated_at) VALUES (?,'intake','processing',?,?)").run(title, now(), now()).lastInsertRowid)
+    const questionId = createQuestionWithSegments(db, paperId, [], 1)
+    db.prepare('INSERT INTO intake_drafts (id,paper_id,question_id,title,updated_at) VALUES (?,?,?,?,?)').run(nextId, paperId, questionId, title, now())
+    for (const s of source.sources) db.prepare('INSERT INTO intake_draft_sources VALUES (?,?)').run(nextId, s.id)
+    saveContext(nextId, context)
+    const prior = getQuestionMetadata(db, source.questionId), metadata = emptyQuestionMetadata()
+    metadata.source = inherit.source ? prior.source : null; metadata.year = inherit.year ? prior.year : null
+    metadata.typeId = inherit.typeId ? prior.typeId : null; metadata.chapterId = inherit.chapterId ? prior.chapterId : null
+    metadata.difficultyId = inherit.difficultyId ? prior.difficultyId : null
+    metadata.knowledgePointIds = inherit.knowledgePointIds ? prior.knowledgePointIds : []
+    saveQuestionMetadata(db, questionId, metadata, getQuestionMetadata(db, questionId))
+    db.prepare('INSERT INTO intake_next VALUES (?,?,?)').run(id, nextId, JSON.stringify(metadata))
+    return getDraft(nextId)
+  })()
+}
+export function listSession(id: string): IntakeSummary[] {
+  getDraft(id)
+  const db = getDb()
+  // Both directions form a single chain; UNION also bounds traversal if old data is corrupt.
+  const rows = db.prepare(`WITH RECURSIVE session(id) AS (
+    SELECT ? UNION SELECT n.previous_id FROM intake_next n JOIN session s ON n.next_id=s.id
+    UNION SELECT n.next_id FROM intake_next n JOIN session s ON n.previous_id=s.id)
+    SELECT d.id,d.title,d.status,d.question_id AS questionId,d.updated_at AS updatedAt,
+      json_array_length(d.components_json) AS componentCount FROM intake_drafts d JOIN session s ON d.id=s.id ORDER BY d.question_id`).all(id) as IntakeSummary[]
+  return rows
 }

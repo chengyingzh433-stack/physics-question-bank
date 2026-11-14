@@ -1,16 +1,18 @@
 # 教师题库管理系统
 
-面向教师个人积累与复用好题的桌面工具，当前 Mac 人工验收版：**1.1.0-beta.13**；Windows 已验证版本：**1.1.0-beta.3**。
+面向教师个人积累与复用好题的桌面工具，当前 Mac 人工验收版：**1.1.0-beta.14**；Windows 已验证版本：**1.1.0-beta.3**。
 
 ## 下载与使用
 
 从 [GitHub Releases](https://github.com/chengyingzh433-stack/physics-question-bank/releases) 下载对应平台的文件。Mac（Apple Silicon，M 系列）下载 `mac-arm64.dmg`，打开后将应用拖入“应用程序”；Windows 下载 beta.3 的 EXE 安装程序。日常使用无需命令行或 Node.js。beta.7 起可在软件内检查和安装后续版本，首次仍需安装 DMG；操作与 Doc2X Key 配置见 [更新使用说明](docs/superpowers/specs/2026-10-25-in-app-update-guide.md)。
 
-Mac 版尚无 Apple Developer ID 签名和公证，本版完成静态检查与构建；beta.11 曾按授权用真实 PDF 手工核对主要流程，beta.13 的搜索与导出功能验收由用户执行；下载后可能需要系统的开发者信任确认。Intel Mac 未验证，本轮不提供 Intel 安装包。
+Mac 版尚无 Apple Developer ID 签名和公证，本版完成静态检查与构建；beta.11 曾按授权用真实 PDF 手工核对主要流程，beta.13、beta.14 新增功能验收由用户执行；下载后可能需要系统的开发者信任确认。Intel Mac 未验证，本轮不提供 Intel 安装包。
 
 资料默认保存在 Windows 的 `%APPDATA%/physics-question-bank` 或 Mac 的 `~/Library/Application Support/physics-question-bank`；原 PDF 与题图的存储位置可在应用设置查看。仓库和安装程序不包含个人题库资料。
 
 ## 当前功能
+
+beta.14 增加同一原稿连续录题、保存并录下一题、页码/缩放/滚动位置恢复，以及数字 PDF 选区文字候选。标签沿用逐项选择，原稿共享引用；文字候选需人工采用，扫描页不会自动 OCR。见 [第二阶段交付与自测说明](docs/superpowers/specs/2026-11-15-continuous-intake-beta14-delivery.md)。
 
 beta.13 增加已保存题干/答案搜索、匹配片段、统一内容来源及 PDF/PPT 编辑稿导出。清空答案独立保留为空，旧导出偏好可显式沿用；见 [第一阶段交付与自测说明](docs/superpowers/specs/2026-11-14-content-reuse-beta13-delivery.md)。
 
@@ -72,7 +74,7 @@ M19 已实现 Doc2X 单图 API 接入，默认关闭，用户使用自己的 Key
 
 ## 开发记录
 
-- [后续改进计划：内容检索与一致导出、连续录题、智能辅助（待实施）](docs/superpowers/plans/2026-11-14-product-improvement-roadmap.md)
+- [后续改进计划：内容检索与一致导出、连续录题、智能辅助（阶段三待实施）](docs/superpowers/plans/2026-11-14-product-improvement-roadmap.md)
 - [ZhiTi 源码对照报告](docs/superpowers/specs/2026-11-13-zhiti-source-comparison.md)
 
 - [M21 多来源录题方案](docs/superpowers/plans/2026-10-25-multi-source-intake-plan.md)

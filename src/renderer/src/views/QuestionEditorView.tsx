@@ -11,7 +11,8 @@ import { OcrWorkspace } from '../components/editor/OcrWorkspace'
 import { ocrDraftFingerprint, type OcrPart } from '@shared/ocr'
 import { ocrErrorMessage } from '../components/editor/ocrMessages'
 import '../components/editor/QuestionEditor.css'
-import type { IntakeDraft } from '@shared/intake'
+import { defaultIntakeInheritance, intakeInheritanceLabels, type IntakeInheritance, type IntakeDraft } from '@shared/intake'
+import { IntakeSession } from '../components/intake/IntakeSession'
 import { clearLocalEdit, readLocalEdit, recoveryKey, writeLocalEdit, type LocalEditRecovery } from '../components/editor/localEditRecovery'
 import { useUnsavedNavigation } from '../components/useUnsavedNavigation'
 
@@ -29,6 +30,7 @@ export default function QuestionEditorView() {
   const from = search.get('from') === '/intake' ? '/intake' : search.get('from') === '/basket' ? '/basket' : '/bank'
   const navigate = useNavigate()
   const [intake, setIntake] = useState<IntakeDraft | null>(null)
+  const [inherit, setInherit] = useState<IntakeInheritance>(defaultIntakeInheritance)
   const [completed, setCompleted] = useState(false)
   const [recovery, setRecovery] = useState<LocalEditRecovery | null>(null)
   const [recoveryNotice, setRecoveryNotice] = useState('')
@@ -105,18 +107,36 @@ export default function QuestionEditorView() {
   }
   useEffect(() => {
     let alive = true
-    window.api.getIntakeForQuestion(questionId).then((value) => { if (alive) setIntake(value) }).catch((e) => { if (alive) setError(errorMessage(e)) })
+    window.api.getIntakeForQuestion(questionId).then((value) => { if (alive) { setIntake(value); if (value) setInherit(value.context.inherit) } }).catch((e) => { if (alive) setError(errorMessage(e)) })
     return () => { alive = false }
   }, [questionId])
-  const publishIntake = async () => {
+  const openNext = async (draft: IntakeDraft) => {
+    try {
+      const next = await window.api.nextIntakeDraft(draft.id, inherit)
+      navigate(next.status === 'reviewing' || next.status === 'published' ? `/questions/${next.questionId}/edit?from=/intake` : `/intake/${next.id}`)
+    } catch (e) { setError(`本题已保存入库，下一题尚未打开：${errorMessage(e)}。可点击“继续同一原稿”重试，不会重复入库。`) }
+  }
+  const retryNext = async () => {
+    if (!intake || busy || writeLock.current) return
+    writeLock.current = true; setSaving(true); setError('')
+    try { await openNext(intake) } finally { writeLock.current = false; setSaving(false) }
+  }
+  const publishIntake = async (next = false) => {
     if (!intake || !data || ocrDirty || busy || writeLock.current) return
     writeLock.current = true; setSaving(true); setError('')
     try {
+      const latestContext = (await window.api.getIntakeDraft(intake.id)).context
+      await window.api.saveIntakeContext(intake.id, { ...latestContext, inherit })
       const result = await window.api.saveQuestionEdits(questionId, { content, expectedRevision: revision, metadata,
         expectedMetadata: savedMetadata, publish: { draftId: intake.id, confirmed: true } })
       applySnapshot(result); setIntake({ ...intake, status: 'published' }); setCompleted(true)
+      if (next) await openNext(intake)
       notifications.show({ title: '题目和标签已保存入库', message: '题库卡片会显示这次保存的内容。', color: 'green' })
-    } catch (e) { setError(errorMessage(e)) } finally { writeLock.current = false; setSaving(false) }
+    } catch (e) {
+      setError(errorMessage(e))
+      // If the publication response was lost, recover the committed state instead of publishing again.
+      try { const latest = await window.api.getIntakeDraft(intake.id); if (latest.status === 'published') { setIntake(latest); setError('此题已有入库版本。当前修改保留在编辑区，请核对并保存修改；通过本次连续录题或原稿页继续下一题。') } } catch { /* Keep the original error and local edits. */ }
+    } finally { writeLock.current = false; setSaving(false) }
   }
   const applySaved = (value: QuestionContentDTO) => {
     const next = contentInput(value)
@@ -258,9 +278,11 @@ export default function QuestionEditorView() {
             clearBackup(); setRecovery(null)
           }}>使用已保存版本</Button></Group>
         </Alert>}
+        {intake && <IntakeSession draft={intake} />}
+        {intake && (intake.status === 'reviewing' || completed) && <details><summary>下一题沿用标签（可调整）</summary><Group mt="xs">{(Object.keys(intakeInheritanceLabels) as (keyof IntakeInheritance)[]).map((key) => <Checkbox key={key} label={intakeInheritanceLabels[key]} checked={inherit[key]} disabled={busy} onChange={(e) => { const checked = e.currentTarget.checked; setInherit((value) => ({ ...value, [key]: checked })) }} />)}</Group><Text size="xs" c="dimmed" mt="xs">只沿用勾选项的本次保存值；正文、答案、选区和识别候选始终清空。</Text></details>}
         {completed ? <Paper withBorder p="lg"><Stack>
           <Title order={2}>已保存到题库</Title><Text>这道题的内容和标签已经保存，可以继续录下一题。</Text>
-          <Group><Button onClick={() => navigate('/intake')}>继续录下一题</Button><Button variant="light" onClick={() => navigate('/bank')}>查看题库</Button>
+          <Group><Button loading={saving} disabled={busy} onClick={() => void retryNext()}>继续同一原稿</Button><Button variant="default" disabled={busy} onClick={() => navigate('/intake')}>换一份原稿</Button><Button variant="light" onClick={() => navigate('/bank')}>查看题库</Button>
             <Button variant="subtle" onClick={() => setCompleted(false)}>继续修改这道题</Button></Group>
           <div className="editor-paper"><DocumentPreview document={content.questionBody} assets={data.assets} /></div>
         </Stack></Paper> : <>
@@ -322,8 +344,9 @@ export default function QuestionEditorView() {
           <Button mt="xs" size="xs" variant="default" disabled={busy || dirty || ocrDirty} onClick={() => navigate(`/intake/${intake.id}`)}>查看原稿与组成部分</Button></details>}
         <Paper withBorder p="sm" className="intake-publish-bar"><Group justify="space-between" align="center">
           <Text size="sm" c="dimmed">{intake?.status === 'reviewing' ? '核对题干、答案和标签后，保存到题库。' : '保存后题卡会同步显示修改。'}</Text>
-          <Button loading={saving} disabled={busy || ocrDirty || (intake?.status !== 'reviewing' && !dirty)} onClick={() => void (intake?.status === 'reviewing' ? publishIntake() : save())}>
-            {intake?.status === 'reviewing' ? '保存并入库' : '保存修改'}</Button>
+          <Group>{intake?.status === 'reviewing' && <Button loading={saving} disabled={busy || ocrDirty} onClick={() => void publishIntake(true)}>保存并录下一题</Button>}
+          <Button variant={intake?.status === 'reviewing' ? 'default' : 'filled'} loading={saving} disabled={busy || ocrDirty || (intake?.status !== 'reviewing' && !dirty)} onClick={() => void (intake?.status === 'reviewing' ? publishIntake() : save())}>
+            {intake?.status === 'reviewing' ? '保存并结束' : '保存修改'}</Button></Group>
         </Group>{ocrDirty && <Text size="xs" c="orange" mt="sm">识别候选仍有未保存修改，请打开识别区保存或处理候选。</Text>}</Paper>
         </>}
         <Drawer opened={ocrOpen} onClose={() => { if (!ocrProtecting) setOcrOpen(false) }} position="right" size="90%" title="图片转文字 · Doc2X" keepMounted

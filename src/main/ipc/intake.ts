@@ -1,9 +1,12 @@
 import { BrowserWindow, clipboard, dialog, ipcMain } from 'electron'
 import * as intake from '../intake/IntakeService'
-import type { IntakeComponent } from '../../shared/intake'
+import type { IntakeComponent, IntakeContext, IntakeInheritance } from '../../shared/intake'
 import type { OcrCrop } from '../../shared/ocr'
 
 export function registerIntakeIpc(): void {
+  ipcMain.handle('intake:context', (_e, id: string, context: IntakeContext) => intake.saveContext(id, context))
+  ipcMain.handle('intake:next', (_e, id: string, inherit: IntakeInheritance) => intake.nextDraft(id, inherit))
+  ipcMain.handle('intake:session', (_e, id: string) => intake.listSession(id))
   ipcMain.handle('intake:list', () => intake.listDrafts())
   ipcMain.handle('intake:create', (_e, from?: string, components?: boolean) => intake.createDraft(from, components))
   ipcMain.handle('intake:get', (_e, id: string) => intake.getDraft(id))

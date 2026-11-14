@@ -18,7 +18,7 @@ export async function composeQuestion(draft: IntakeDraft): Promise<Composition> 
     let y = margin
     for (const c of components) {
       const prefix = c.role === 'option' && c.label ? `${c.label}. ` : c.role === 'answer' ? '答案：' : c.role === 'analysis' ? '解析：' : ''
-      if (c.text || prefix) for (const paragraph of `${prefix}${c.text}`.split(/\r?\n/)) {
+      if (!c.textSourceAssetId && (c.text || prefix)) for (const paragraph of `${prefix}${c.text}`.split(/\r?\n/)) {
         let line = ''
         for (const char of paragraph) {
           if (ctx.measureText(line + char).width > width - 2 * margin && line) { rows.push({ type: 'text', text: line, y }); y += lineHeight; line = '' }
@@ -27,8 +27,8 @@ export async function composeQuestion(draft: IntakeDraft): Promise<Composition> 
         rows.push({ type: 'text', text: line, y }); y += lineHeight
         if (y > 11500) throw new Error('这道题太长，无法生成清晰的单题图，请拆分题目')
       }
-      if (c.assetId) {
-        const asset = draft.assets.find((a) => a.id === c.assetId)
+      if (c.assetId || c.textSourceAssetId) {
+        const asset = draft.assets.find((a) => a.id === (c.assetId || c.textSourceAssetId))
         if (!asset) throw new Error('组成部分的图片不存在，请重新添加')
         const img = new Image(); img.crossOrigin = 'anonymous'; img.src = assetUrl(asset.path); await img.decode()
         const ratio = Math.min(1.5, (width - 2 * margin) / img.naturalWidth)

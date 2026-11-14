@@ -1,14 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
 import { Alert, Group, Select, SegmentedControl, Stack, Text } from '@mantine/core'
+import type { IntakeViewport } from '@shared/intake'
 import type { OcrCrop } from '@shared/ocr'
 
 /** Only selects local pixels. The main process prepares the immutable upload copy. */
-export function OcrImageSelection({ url, disabled, onChange, purpose = 'ocr' }: {
+export function OcrImageSelection({ url, disabled, onChange, purpose = 'ocr', initialView, onView }: {
   url: string; disabled: boolean; purpose?: 'ocr' | 'intake'
+  initialView?: IntakeViewport; onView?: (view: IntakeViewport) => void
   onChange: (crop: OcrCrop | null, scale: number, valid: boolean) => void
 }) {
-  const [mode, setMode] = useState(purpose === 'intake' ? 'region' : 'full')
   const [size, setSize] = useState<{ width: number; height: number } | null>(null)
+  const [zoom, setZoom] = useState(initialView?.zoom ?? 1)
+  const scroll = useRef<HTMLDivElement>(null), restored = useRef(false)
+  const viewCallback = useRef(onView); viewCallback.current = onView
+  const reportView = () => {
+    const node = scroll.current
+    if (node && restored.current) viewCallback.current?.({ page: initialView?.page ?? 1, zoom, left: Math.max(0, Math.min(1, node.scrollLeft / Math.max(1, node.scrollWidth - node.clientWidth))), top: Math.max(0, Math.min(1, node.scrollTop / Math.max(1, node.scrollHeight - node.clientHeight))) })
+  }
+  useEffect(() => {
+    if (!size || !scroll.current) return
+    const node = scroll.current
+    if (!restored.current) { node.scrollLeft = (initialView?.left ?? 0) * Math.max(0, node.scrollWidth - node.clientWidth); node.scrollTop = (initialView?.top ?? 0) * Math.max(0, node.scrollHeight - node.clientHeight); restored.current = true }
+    reportView()
+  }, [size, zoom])
+  const [mode, setMode] = useState(purpose === 'intake' ? 'region' : 'full')
   const [selection, setSelection] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
   const [scale, setScale] = useState('1')
   const [error, setError] = useState('')
@@ -32,13 +47,16 @@ export function OcrImageSelection({ url, disabled, onChange, purpose = 'ocr' }: 
     <Group justify="space-between" align="end">
       <div>{purpose !== 'intake' && <Text fw={500} size="sm" mb={4}>识别范围</Text>}<SegmentedControl size="xs" value={mode} disabled={disabled}
         data={[{ value: 'full', label: '使用整页' }, { value: 'region', label: '框选一道题' }]} onChange={setMode} /></div>
+      {purpose === 'intake' && <Select size="xs" w={115} aria-label="原稿视图缩放" value={String(zoom)} allowDeselect={false} disabled={disabled}
+        data={[{ value: '0.5', label: '视图 50%' }, { value: '0.75', label: '视图 75%' }, { value: '1', label: '适合宽度' }, { value: '1.25', label: '视图 125%' }, { value: '1.5', label: '视图 150%' }, { value: '2', label: '视图 200%' }, { value: '3', label: '视图 300%' }]}
+        onChange={(value) => { if (value) setZoom(Number(value)) }} />}
       <Select size="xs" w={120} aria-label="副本尺寸" label={purpose === 'intake' ? undefined : '上传副本尺寸'} description={purpose === 'intake' ? undefined : '只缩小副本，原图保留。'} value={scale} allowDeselect={false}
         disabled={disabled} data={[{ value: '1', label: '原始尺寸' }, { value: '0.75', label: '75%' }, { value: '0.5', label: '50%' }, { value: '0.25', label: '25%' }]}
         onChange={(value) => { if (value) setScale(value) }} />
     </Group>
     {error && <Alert color="red">{error}</Alert>}
-    <div className="crop-scroll">
-      <div className="crop-surface" style={{ cursor: mode === 'region' && !disabled ? 'crosshair' : 'default' }}
+    <div className="crop-scroll" ref={scroll} onScroll={reportView}>
+      <div className="crop-surface" style={{ width: `${zoom * 100}%`, cursor: mode === 'region' && !disabled ? 'crosshair' : 'default' }}
         onPointerDown={(event) => {
           if (mode !== 'region' || !size || disabled || event.button !== 0) return
           event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); dragging.current = true

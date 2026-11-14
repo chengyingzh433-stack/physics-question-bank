@@ -1,21 +1,30 @@
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Group, Loader, NumberInput, Stack, Text } from '@mantine/core'
+import { Alert, Button, Group, Loader, Modal, NumberInput, Stack, Text, Textarea } from '@mantine/core'
 import { renderAsync } from 'docx-preview'
 import { toPng } from 'html-to-image'
-import type { IntakeSource } from '@shared/intake'
+import type { IntakeSource, IntakeViewport } from '@shared/intake'
 import type { OcrCrop } from '@shared/ocr'
 import { assetUrl } from '@shared/editable'
 import { loadPdf, type PdfDocument } from '../../services/RenderService'
+import { pdfTextGlyphs, extractSelectionText, type PdfTextGlyph } from './pdfSelectionText'
 import { OcrImageSelection } from '../editor/OcrImageSelection'
 
-export interface IntakePage { url: string; page: number; text: string }
-export function IntakePreview({ source, disabled, readOnly = false, onPage, onSelection, onText }: {
+export interface IntakePage { url: string; page: number; text: string; glyphs?: PdfTextGlyph[] }
+export function IntakePreview({ source, disabled, readOnly = false, onPage, onSelection, onText, initialView, onView }: {
   source: IntakeSource; disabled: boolean; readOnly?: boolean; onPage: (page: IntakePage | null) => void
-  onSelection: (crop: OcrCrop | null, scale: number, valid: boolean) => void; onText: (text: string) => void
+  onSelection: (crop: OcrCrop | null, scale: number, valid: boolean) => void; onText: (text: string) => Promise<void>
+  initialView?: IntakeViewport; onView: (view: IntakeViewport) => void
 }) {
-  const [page, setPage] = useState(1), [count, setCount] = useState(1)
+  const [page, setPage] = useState(initialView?.page ?? 1), [count, setCount] = useState(1)
   const [ready, setReady] = useState(0), [image, setImage] = useState<IntakePage | null>(null)
   const [loading, setLoading] = useState(true), [error, setError] = useState('')
+  const [positionNotice, setPositionNotice] = useState('')
+  const [candidate, setCandidate] = useState<string | null>(null), [adopting, setAdopting] = useState(false), [textError, setTextError] = useState('')
+  const selection = useRef<{ crop: OcrCrop | null; valid: boolean }>({ crop: null, valid: false })
+  const view = useRef<IntakeViewport>(initialView ?? { page: 1, zoom: 1, left: 0, top: 0 })
+  const updateView = (value: IntakeViewport) => { view.current = value; onView(value) }
+  const changePage = (value: number) => { updateView({ ...view.current, page: value, left: 0, top: 0 }); setPage(value) }
+  const setPageCount = (value: number) => { setCount(value); if (view.current.page > value) { changePage(value); setPositionNotice('原稿分页已变化，已恢复到最后一个有效页，请核对位置。') } }
   const pdf = useRef<PdfDocument | null>(null), wordPages = useRef<HTMLElement[]>([])
   const frame = useRef<HTMLIFrameElement>(null)
   const callbacks = useRef({ onPage, onSelection }); callbacks.current = { onPage, onSelection }
@@ -23,11 +32,11 @@ export function IntakePreview({ source, disabled, readOnly = false, onPage, onSe
     let cancelled = false, destroy: (() => Promise<void>) | undefined
     setLoading(true); setError(''); setImage(null); setReady(0); callbacks.current.onPage(null)
     const load = async () => {
-      if (source.kind === 'image') { setCount(1); return }
+      if (source.kind === 'image') { setPageCount(1); return }
       if (source.kind === 'pdf') {
         const loaded = await loadPdf(assetUrl(source.previewPath)); destroy = loaded.destroy
         if (cancelled) { await loaded.destroy(); return }
-        pdf.current = loaded.doc; setCount(loaded.doc.numPages)
+        pdf.current = loaded.doc; setPageCount(loaded.doc.numPages)
       } else {
         const iframe = frame.current!
         await new Promise<void>((resolve, reject) => {
@@ -74,7 +83,7 @@ export function IntakePreview({ source, disabled, readOnly = false, onPage, onSe
             }
           }
         }
-        wordPages.current = pages; setCount(pages.length)
+        wordPages.current = pages; setPageCount(pages.length)
       }
     }
     void load().then(() => { if (!cancelled) setReady((v) => v + 1) }).catch((e) => {
@@ -87,7 +96,7 @@ export function IntakePreview({ source, disabled, readOnly = false, onPage, onSe
     let cancelled = false
     const currentPdf = pdf.current
     let renderTask: ReturnType<Awaited<ReturnType<PdfDocument['getPage']>>['render']> | null = null
-    setLoading(true); setError(''); setImage(null); callbacks.current.onPage(null); callbacks.current.onSelection(null, 1, false)
+    setLoading(true); setError(''); setTextError(''); setImage(null); selection.current = { crop: null, valid: false }; callbacks.current.onPage(null); callbacks.current.onSelection(null, 1, false)
     const render = async (): Promise<IntakePage> => {
       if (source.kind === 'image') return { url: assetUrl(source.previewPath), page: 1, text: '' }
       if (currentPdf) {
@@ -98,10 +107,10 @@ export function IntakePreview({ source, disabled, readOnly = false, onPage, onSe
         canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height)
         renderTask = p.render({ canvasContext: canvas.getContext('2d')!, viewport })
         await renderTask.promise
-        const textContent = await p.getTextContent()
-        const text = textContent.items.map((i) => 'str' in i ? i.str + (i.hasEOL ? '\n' : ' ') : '').join('')
+        const glyphs = await pdfTextGlyphs(p, viewport)
+        const text = extractSelectionText(glyphs, null)
         const url = canvas.toDataURL('image/png'); p.cleanup()
-        return { url, page, text }
+        return { url, page, text, glyphs }
       }
       const node = wordPages.current[page - 1]
       if (!node) throw new Error('Word 页码无效')
@@ -120,18 +129,41 @@ export function IntakePreview({ source, disabled, readOnly = false, onPage, onSe
   }, [source.id, page, ready])
   return <Stack gap="xs" className="intake-preview">
     {source.kind !== 'image' && <Group justify="space-between">
-      <Group gap="xs"><Button size="xs" variant="default" disabled={disabled || loading || page <= 1} onClick={() => setPage((p) => p - 1)}>上一页</Button>
+      <Group gap="xs"><Button size="xs" variant="default" disabled={disabled || loading || page <= 1} onClick={() => changePage(page - 1)}>上一页</Button>
         <NumberInput aria-label="原稿页码" value={page} min={1} max={count} w={80} disabled={disabled || loading} allowDecimal={false}
-          onChange={(v) => { if (typeof v === 'number' && v >= 1 && v <= count) setPage(v) }} />
-        <Text size="sm">/ {count} 页</Text><Button size="xs" variant="default" disabled={disabled || loading || page >= count} onClick={() => setPage((p) => p + 1)}>下一页</Button></Group>
-      <Button size="xs" variant="light" disabled={!image?.text.trim() || disabled || loading || readOnly} onClick={() => image && onText(image.text)}>读取本页文字到输入框</Button>
+          onChange={(v) => { if (typeof v === 'number' && v >= 1 && v <= count) changePage(v) }} />
+        <Text size="sm">/ {count} 页</Text><Button size="xs" variant="default" disabled={disabled || loading || page >= count} onClick={() => changePage(page + 1)}>下一页</Button></Group>
+      <Button size="xs" variant="light" disabled={!image || disabled || loading || readOnly} onClick={() => {
+        setTextError('')
+        if (!image) return
+        if (source.kind === 'pdf' && !selection.current.valid) { setTextError('请先框选要提取的区域，或明确选择“使用整页”。'); return }
+        const value = source.kind === 'pdf' ? extractSelectionText(image.glyphs ?? [], selection.current.crop) : image.text
+        if (!value.trim()) { setTextError('当前范围没有可提取的文字层。可保留原图入库、手工输入，或在校对页主动使用图片转文字。'); return }
+        if (value.length > 20000) { setTextError('当前文字超过单个部分的 2 万字限制，请缩小范围。'); return }
+        setCandidate(value)
+      }}>{source.kind === 'pdf' ? '提取选区文字' : '读取 Word 整页文字'}</Button>
     </Group>}
+    {positionNotice && <Alert color="orange">{positionNotice}</Alert>}
+    {textError && <Alert color="orange">{textError}</Alert>}
     {source.warning && <Alert color="orange">{source.warning}</Alert>}
     {source.kind === 'docx' && <Text size="xs" c="dimmed">Word 预览的分页、字体和复杂对象可能与原文档不同。如显示不完整，可先导出 PDF 再录入。</Text>}
     {error && <Alert color="red" title="原稿已保留，预览未完成">{error}</Alert>}
     {loading && <Group justify="center" p="xl"><Loader size="sm" /><Text>正在本机生成预览…</Text></Group>}
     {image && !loading && <OcrImageSelection key={`${source.id}-${page}`} url={image.url} disabled={disabled || readOnly}
-      onChange={onSelection} purpose="intake" />}
+      initialView={{ ...view.current, page }} onView={updateView}
+      onChange={(crop, scale, valid) => { selection.current = { crop, valid }; onSelection(crop, scale, valid) }} purpose="intake" />}
+    <Modal opened={candidate !== null} onClose={() => { if (!adopting) setCandidate(null) }} title="核对提取文字" size="lg" closeOnEscape={!adopting} closeOnClickOutside={!adopting} withCloseButton={!adopting}>
+      <Stack><Text size="sm" c="dimmed">{source.kind === 'pdf' ? '仅从当前选区读取已有文字层；公式、选项顺序及边缘字符请对照原图核对。采用后按顺序追加，原选区另外保留。' : 'Word 读取的是当前整页文字，不按选区过滤。分页及公式可能不完整，请先删去其他题目内容。'}</Text>
+        <Textarea aria-label="提取文字候选" value={candidate ?? ''} onChange={(e) => setCandidate(e.currentTarget.value)} minRows={8} maxRows={18} autosize maxLength={20000} disabled={adopting} />
+        {textError && <Alert color="red">{textError}</Alert>}
+        <Group justify="flex-end"><Button variant="default" disabled={adopting} onClick={() => setCandidate(null)}>取消</Button>
+          <Button loading={adopting} disabled={!candidate?.trim()} onClick={async () => {
+            if (adopting || !candidate?.trim()) return
+            setAdopting(true); setTextError('')
+            try { await onText(candidate); setCandidate(null) } catch (e) { setTextError(e instanceof Error ? e.message : String(e)) } finally { setAdopting(false) }
+          }}>采用并加入当前题目</Button></Group>
+      </Stack>
+    </Modal>
     {source.kind === 'docx' && <iframe ref={frame} sandbox="allow-same-origin" title="本机 Word 预览" className="intake-word-frame" />}
   </Stack>
 }

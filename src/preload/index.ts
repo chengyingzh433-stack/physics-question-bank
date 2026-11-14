@@ -2,6 +2,9 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { Api } from '../shared/types'
 
 const api: Api = {
+  saveIntakeContext: (id, context) => ipcRenderer.invoke('intake:context', id, context),
+  nextIntakeDraft: (id, inherit) => ipcRenderer.invoke('intake:next', id, inherit),
+  listIntakeSession: (id) => ipcRenderer.invoke('intake:session', id),
   listIntakeDrafts: () => ipcRenderer.invoke('intake:list'),
   createIntakeDraft: (from, components) => ipcRenderer.invoke('intake:create', from, components),
   getIntakeDraft: (id) => ipcRenderer.invoke('intake:get', id),
